@@ -9,6 +9,37 @@
 
 ---
 
+## Features at a glance
+
+* **4 independently-designed databases** (manufacturer, distributor, retail
+  vendor, Ministry of Consumer Affairs), each its own FastAPI micro-service —
+  different naming conventions, no shared foreign key.
+* **Instance-based schema matching** that *discovers* the common item-code
+  column across all four, and correctly refuses to merge similarly-named
+  columns whose values don't actually overlap.
+* **Federated verdict engine** — ASALI / SUSPECT / NAKALI with a 0–100 trust
+  score and explained red flags (ghost codes, cloned/over-issued codes,
+  broken chain of custody, expired stock sold, source-company mismatches).
+* **Full provenance timeline and write-back loop** — file a counterfeit
+  report to the Ministry from the GUI, which auto-blacklists the supplier in
+  the distributor's database.
+* **A GUI with 3 screens** (item lookup, integration lab, federated SQL) plus
+  free interactive API docs (`/docs`) on every data-source service.
+* **Runs identically on 1, 2, or 4 machines** — same code, same
+  `sources.json` mechanism, and any machine can pick up the mediator/GUI
+  role on demand. See [DEPLOYMENT.md](DEPLOYMENT.md) /
+  [DEPLOYMENT_TWO_MACHINE.md](DEPLOYMENT_TWO_MACHINE.md).
+* **Loud, not silent, about misconfiguration** — see the Diagnostics section
+  below.
+* **Automated tests** (`tests/test_federation.py`) assert all 12 seeded
+  scenarios resolve to the correct verdict.
+
+**Requirements**: Python 3.9+ (tested on 3.10) and `pip install -r
+requirements.txt` — no database server, no external services, works fully
+offline.
+
+---
+
 ## 1. What it does (the use case)
 
 A pharmacist scans the code `SLP-VITD3-B2404-0050` at the counter. In one click
@@ -30,7 +61,7 @@ the system:
 ## 2. Architecture
 
 ```
-                 ┌─────────────────────────────────────────────┐
+                 ┌────────────────────────────────────────────-─┐
    Browser ───►  │   Mediator + GUI            :8080            │
                  │   - schema matching                          │
                  │   - query decomposition via the source APIs  │
@@ -70,6 +101,26 @@ python tests/test_federation.py        # or:  python -m pytest -q
 
 ## 4. Run it distributed
 
+**The general rule** (this is not tied to any one topology): each of the 4
+databases can run on **any** machine, in **any** combination — 4 machines
+with one each, 2 machines with two each, 3 machines split unevenly, all 4 on
+one machine, whatever fits the hardware you have — and **any** machine
+(including one with no database of its own) can additionally serve as the
+mediator/GUI, simply by adding `--with-mediator` to what it already runs, or
+by running `--mediator-only` on a dedicated extra machine. Nothing in the
+code assumes a specific split; `sources.json` just says, per machine,
+"reach these services at these addresses," and whatever isn't listed is
+assumed to be local. This has been verified for 4-machines-one-each (either
+one of the 4, or a genuinely separate 5th database-free machine, as the
+mediator), 2-machines-two-each (either as mediator), and a 3-machine
+2+1+1 split (either the 2-DB or a 1-DB machine as mediator) — see `REPORT.md`
+§7.1 for the actual test runs.
+
+**Your primary plan** — 4 machines, one database each, with either one of
+those 4 *also* running the GUI, or a 5th laptop as a dedicated
+database-free mediator — is exactly the setup that's been exercised the
+most and is the recommended one for the viva.
+
 Only have **2 machines**? Follow **[DEPLOYMENT_TWO_MACHINE.md](DEPLOYMENT_TWO_MACHINE.md)**
 instead — the 4 databases split 2-and-2 across the two machines, and
 **either machine can run the mediator/GUI** on demand (`--with-mediator`).
@@ -94,7 +145,36 @@ python start.py --mediator-only
 Because every machine carries the same project and the same `sources.json`,
 the GUI can be started on **any one of them** and it will fetch and join data
 live from the other machines over the network — which is what lets the
-professor run the query from whichever machine they're sitting at.
+professor run the query from whichever machine they're sitting at. In
+practice that's one flag: `python start.py --services=<own source(s)>
+--with-mediator` on whichever machine should demo the GUI (verified by
+actually swapping which machine hosts the mediator mid-session — see
+`REPORT.md` §7.1).
+
+### Diagnostics (read this before blaming the network)
+
+Distributing across real machines surfaces failures a single laptop never
+sees. These are now loud instead of silent:
+
+* Every launch prints a **`BIND MODE:`** line first — `network (0.0.0.0)` or
+  `localhost only (127.0.0.1)` — so it's never ambiguous whether a machine
+  is actually reachable from the others.
+* A typo'd flag (`--service=` instead of `--services=`, a space instead of
+  `=`) makes `start.py` **exit with an error**, not silently fall back to
+  the plain-localhost default.
+* A missing/misnamed/invalid `sources.json` prints a specific
+  `[config] WARNING` explaining exactly what's wrong.
+* `check_network.py` prints the exact file path it read and which services
+  it resolved to `127.0.0.1` vs. a remote IP, before testing anything.
+* If a machine's auto-detected LAN IP looks like a VPN tunnel address, a
+  `[note]` says so — override with `ASALI_LAN_IP=<correct ip>` if needed.
+* A source that's down never crashes the mediator with a raw error — e.g.
+  filing a report when the Ministry is unreachable returns a clean,
+  readable error instead of an unhandled exception.
+* The codebase avoids Python 3.10-only syntax (`typing.Optional[str]`, not
+  `str | None`) specifically so it also runs on older default `python3`
+  versions you might find on a lab/Ubuntu machine (e.g. Ubuntu 20.04 ships
+  3.8) without a separate interpreter install.
 
 ### The three screens
 
@@ -133,7 +213,7 @@ pointers. In brief:
 | 5 | APIs creation for data fetching | `datasources/base.py` (+ per-source extra endpoints) |
 | 6 | Querying data sources through APIs | `integration/federation.py`, `/query` screen |
 | 7 | Communication between the data sources | REST calls between the 4 services + mediator; real multi-machine deployment in `DEPLOYMENT.md` |
-| 8 | Results integration + GUI | `mediator/` |
+| 8 | Results integration + GUI | `mediator/` (dedicated design/UX pass — see `REPORT.md` §8) |
 
 ## 7. Layout
 
@@ -156,7 +236,12 @@ integration/
   federation.py               query the source APIs, integrate, run the verdict engine
 mediator/
   app.py                      FastAPI app (GUI + JSON API), no DB of its own
-  templates/  static/         the 3 screens
-start.py                      launcher: all-in-one, --services-only, or --mediator-only
+  templates/  static/         the 3 screens (light theme, active nav, responsive)
+start.py                      launcher: all-in-one / --services=<subset> / --services-only /
+                               --mediator-only / --with-mediator / --lan / --rebuild
 tests/test_federation.py      12 scenario assertions + matcher assertions
 ```
+
+Every data-source API also serves live interactive docs at `/docs` on its
+own port (e.g. `http://127.0.0.1:8081/docs`) — FastAPI generates these
+automatically from the code, no extra work.

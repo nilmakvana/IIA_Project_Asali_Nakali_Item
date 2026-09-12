@@ -14,6 +14,7 @@ import datetime as _dt
 import os
 import sqlite3
 import sys
+from typing import Optional
 
 import requests
 from fastapi import Body
@@ -41,7 +42,7 @@ def create_app():
     app = make_service("ministry", DB)
 
     @app.get("/reports")
-    def get_reports(code: str | None = None):
+    def get_reports(code: Optional[str] = None):
         con = sqlite3.connect(DB)
         con.row_factory = sqlite3.Row
         try:

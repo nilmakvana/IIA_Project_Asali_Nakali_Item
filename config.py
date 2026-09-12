@@ -42,6 +42,7 @@ item's unique code, stored under a different attribute name in every source:
 import json
 import os
 import socket
+from typing import Optional
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -171,7 +172,7 @@ def lan_ip() -> str:
         s.close()
 
 
-def lan_ip_caveat() -> str | None:
+def lan_ip_caveat() -> Optional[str]:
     """
     A one-line heads-up to print next to lan_ip() when it looks like it may
     have picked up a VPN tunnel instead of the real Wi-Fi/Ethernet address
