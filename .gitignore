@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+# regenerate with:  python start.py --rebuild
+data/*.db
+# machine-specific: where THIS machine finds the other 4 services (see DEPLOYMENT.md)
+sources.json

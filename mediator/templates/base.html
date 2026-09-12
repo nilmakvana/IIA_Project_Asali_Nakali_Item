@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Asali / Nakali{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="{{ url_for('home') }}">
+    <span class="logo">✦</span>
+    <span>Asali&nbsp;/&nbsp;Nakali <small>authenticity mediator</small></span>
+  </a>
+  <nav>
+    <a href="{{ url_for('home') }}">Verify item</a>
+    <a href="{{ url_for('lab_page') }}">Integration lab</a>
+    <a href="{{ url_for('query_page') }}">Federated SQL</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  {% block body %}{% endblock %}
+</main>
+
+<footer class="foot">
+  4 isolated data sources &middot; mediated schema (GAV) &middot; instance-based schema matching &middot;
+  parallel query decomposition over REST &middot; rule-based counterfeit verdict
+</footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>

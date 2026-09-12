@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Federated SQL{% endblock %}
+{% block body %}
+
+<h1>Federated SQL</h1>
+<p class="muted">
+  Run SQL against the <b>mediated</b> views <code>item_master</code> /
+  <code>item_authenticity</code>. The mediator decomposes it into per-source
+  sub-queries, dispatches them over REST and integrates the answers.
+</p>
+
+<section class="card">
+  <textarea id="sql" rows="4">SELECT code, product_name, company, verdict, trust_score FROM item_master WHERE code = 'SLP-VITD3-B2404-0050'</textarea>
+  <div class="btn-row">
+    <button onclick="runSql()">Run</button>
+    <button class="ghost" onclick="setSql(&quot;SELECT code, product_name, company, verdict, trust_score FROM item_master WHERE code = 'MRC-DOLO650-B2403-0044'&quot;)">point lookup (4 sources)</button>
+    <button class="ghost" onclick="setSql('SELECT code, product_name, company, in_verified_registry, verdict FROM item_master LIMIT 20')">multi-row join (2 sources)</button>
+    <button class="ghost" onclick="setSql(&quot;SELECT code, verdict, trust_score, red_flags FROM item_authenticity WHERE code = 'ZZZ-CIPRO500-FAKE-9001'&quot;)">authenticity view</button>
+  </div>
+</section>
+
+<section class="card" id="out" style="display:none">
+  <h2>Result <span class="pill" id="mode"></span></h2>
+  <div id="rows"></div>
+  <h3>Decomposition &amp; federation plan</h3>
+  <table class="plan"><thead><tr><th>#</th><th>source</th><th>sub-query</th><th>rows</th><th>ms</th></tr></thead>
+    <tbody id="plan"></tbody></table>
+  <p class="muted" id="note"></p>
+</section>
+
+{% endblock %}
+{% block scripts %}
+<script>
+function setSql(s){ document.getElementById('sql').value = s; runSql(); }
+function esc(x){ return String(x==null?'':x).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+async function runSql(){
+  const sql = document.getElementById('sql').value;
+  const r = await fetch('/api/sql', {method:'POST', headers:{'Content-Type':'application/json'},
+                         body: JSON.stringify({sql})});
+  const j = await r.json();
+  const out = document.getElementById('out'); out.style.display = 'block';
+  if(!j.ok){
+    document.getElementById('rows').innerHTML = '<p class="file-msg err">'+esc(j.error)+'</p>'
+      + (j.available ? '<p class="muted">columns: '+j.available.join(', ')+'</p>' : '');
+    document.getElementById('plan').innerHTML = ''; document.getElementById('mode').textContent='';
+    document.getElementById('note').textContent=''; return;
+  }
+  document.getElementById('mode').textContent = j.mode;
+  document.getElementById('note').textContent = j.note || '';
+
+  const rows = j.rows || [];
+  if(rows.length){
+    const cols = Object.keys(rows[0]);
+    let h = '<div class="matrix-scroll"><table class="plan"><thead><tr>' +
+            cols.map(c=>'<th>'+esc(c)+'</th>').join('') + '</tr></thead><tbody>';
+    for(const row of rows){
+      h += '<tr>' + cols.map(c=>{
+        let val = row[c]; if(Array.isArray(val)) val = val.join(', ');
+        let cls = '';
+        if(c==='verdict') cls = 'v-'+String(val).toLowerCase();
+        return '<td class="'+cls+'">'+esc(val)+'</td>';
+      }).join('') + '</tr>';
+    }
+    document.getElementById('rows').innerHTML = h + '</tbody></table></div>';
+  } else {
+    document.getElementById('rows').innerHTML = '<p class="muted">0 rows</p>';
+  }
+
+  const plan = j.decomposition || [];
+  document.getElementById('plan').innerHTML = plan.map(p =>
+    '<tr><td>'+p.step+'</td><td>'+esc(p.source)+'</td><td><code>'+esc(p.sql||p.error)+'</code></td>'
+    + '<td>'+p.rowcount+'</td><td>'+(p.elapsed_ms||'')+'</td></tr>').join('');
+}
+window.addEventListener('DOMContentLoaded', runSql);
+</script>
+{% endblock %}

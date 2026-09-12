@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy this file to sources.json (same folder) and replace each host with the LAN IP of the machine actually running that data source. sources.json is machine-specific and gitignored - every machine in the deployment gets its own copy pointing at the SAME 4 IPs. See DEPLOYMENT.md.",
+
+  "manufacturer": { "host": "192.168.1.11", "port": 8081 },
+  "distributor":  { "host": "192.168.1.12", "port": 8082 },
+  "vendor":       { "host": "192.168.1.13", "port": 8083 },
+  "ministry":     { "host": "192.168.1.14", "port": 8084 }
+}

@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% set m = rec.master %}
+{% set v = rec.verdict %}
+{% block title %}{{ rec.code }} &mdash; {{ v.verdict }}{% endblock %}
+{% block body %}
+
+<p><a class="back" href="{{ url_for('home') }}">&larr; verify another item</a></p>
+
+<section class="verdict verdict-{{ v.verdict|lower }}">
+  <div class="v-main">
+    <div class="v-badge">{{ v.verdict }}</div>
+    <div class="v-text">
+      <h1>{{ m.product_name or 'Unknown product' }}
+        {% if m.strength %}<small>{{ m.strength }} · {{ m.dosage_form }}</small>{% endif %}
+      </h1>
+      <div class="v-code">{{ rec.code }}</div>
+      <p class="v-headline">{{ v.headline }}</p>
+    </div>
+  </div>
+  <div class="gauge">
+    <div class="gauge-num">{{ v.trust_score }}<small>/100</small></div>
+    <div class="gauge-bar"><span style="width: {{ v.trust_score }}%"></span></div>
+    <div class="gauge-cap">trust score</div>
+    {% if v.verdict != 'ASALI' %}
+      <button id="fileBtn" class="report-btn" onclick="fileReport()">
+        Report to Ministry of Consumer Affairs
+      </button>
+      <div id="fileMsg" class="file-msg"></div>
+    {% endif %}
+  </div>
+</section>
+
+<div class="cols">
+<div class="col-main">
+
+  <section class="card">
+    <h2>Red flags <span class="pill">{{ v.red_flags|length }}</span></h2>
+    {% if v.red_flags %}
+    <ul class="flags">
+      {% for f in v.red_flags %}
+      <li class="flag flag-{{ f.severity|lower }}">
+        <div class="flag-top">
+          <span class="sev">{{ f.severity }}</span>
+          <b>{{ f.title }}</b>
+          <span class="impact">{{ f.score_impact }}</span>
+        </div>
+        <p>{{ f.detail }}</p>
+        <code>{{ f.code }}</code>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="ok-line">No red flags. Every source agrees and the chain of custody is intact.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Provenance timeline <small>(complete history view)</small></h2>
+    <ol class="timeline">
+      {% for e in rec.timeline %}
+      <li>
+        <span class="tl-dot" style="background: {{ SOURCE_COLOURS[e.source] }}"></span>
+        <div class="tl-body">
+          <div class="tl-head">
+            <span class="tl-date">{{ e.date }}</span>
+            <span class="tl-stage">{{ e.stage.replace('_',' ') }}</span>
+            <span class="src-chip" style="border-color: {{ SOURCE_COLOURS[e.source] }}; color: {{ SOURCE_COLOURS[e.source] }}">{{ e.source }}</span>
+          </div>
+          <div class="tl-title">{{ e.title }}</div>
+          <div class="tl-detail">
+            {% for k, val in e.detail.items() if val is not none and val != '' %}
+              <span><b>{{ k.replace('_',' ') }}:</b> {{ val }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <section class="card">
+    <h2>Value conflicts across the isolated sources</h2>
+    {% if rec.conflicts %}
+      {% for c in rec.conflicts %}
+      <div class="conflict {{ 'benign' if c.benign else 'bad' }}">
+        <div class="cf-head">
+          <b>{{ c.attribute }}</b>
+          <span class="cf-kind">{{ c.kind }}</span>
+          <span class="cf-tag">{{ 'reconciled' if c.benign else 'RED FLAG' }}</span>
+        </div>
+        <table class="kv">
+          {% for src, val in c.by_source.items() %}<tr><td>{{ src }}</td><td>{{ val }}</td></tr>{% endfor %}
+        </table>
+        <p class="muted">resolution: {{ c.resolution }}</p>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted">Sources use different attribute names but no value collisions were found.</p>
+    {% endif %}
+  </section>
+
+</div>
+<div class="col-side">
+
+  <section class="card">
+    <h2>Integrated record</h2>
+    <table class="kv">
+      <tr><td>manufacturer</td><td>{{ m.company or '—' }}</td></tr>
+      <tr><td>mfg licence</td><td>{{ m.manufacturer_license or '—' }}</td></tr>
+      <tr><td>generic</td><td>{{ m.generic_name or '—' }}</td></tr>
+      <tr><td>factory</td><td>{{ m.factory_location or '—' }}</td></tr>
+      <tr><td>manufactured</td><td>{{ m.mfg_date or '—' }}</td></tr>
+      <tr><td>expiry</td><td>{{ m.expiry_date or '—' }}</td></tr>
+      <tr><td>MRP</td><td>{{ '₹%.2f'|format(m.mrp) if m.mrp is not none else '—' }}</td></tr>
+      <tr><td>batch quantity</td><td>{{ m.batch_qty if m.batch_qty is not none else '—' }}</td></tr>
+      <tr><td>distributed qty</td><td>{{ m.distributed_qty }}</td></tr>
+      <tr><td>times scanned</td><td>{{ m.times_scanned }}</td></tr>
+      <tr><td>times sold</td><td>{{ m.times_sold }}</td></tr>
+      <tr><td>suppliers</td><td>{{ m.suppliers|join(', ') or '—' }}</td></tr>
+      <tr><td>supplied to</td><td>{{ m.supplied_to_vendors|join(', ') or '—' }}</td></tr>
+      <tr><td>sold at</td><td>{{ m.retail_vendors|join(', ') or '—' }}</td></tr>
+      <tr><td>verified registry</td><td>{{ 'yes (' ~ m.verifying_authority ~ ')' if m.in_verified_registry else 'no' }}</td></tr>
+      <tr><td>counterfeit reports</td><td>{{ m.counterfeit_reports|length }}</td></tr>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Sources contacted</h2>
+    <ul class="src-list">
+      {% for s in ['manufacturer','distributor','vendor','ministry'] %}
+      <li><span class="src-chip" style="border-color: {{ SOURCE_COLOURS[s] }}; color: {{ SOURCE_COLOURS[s] }}">{{ s }}</span>
+        <span class="muted">{{ rec.raw[s].keys()|list|join(', ') }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="muted">round-trip {{ rec._total_ms }} ms &middot; generated {{ rec.generated_at }}</p>
+  </section>
+
+</div>
+</div>
+
+<section class="card">
+  <details>
+    <summary><h2 style="display:inline">Query decomposition &amp; federation plan</h2>
+      <span class="muted">&nbsp;({{ rec._plan|length }} sub-queries across {{ rec.sources_contacted }} sources)</span></summary>
+    <table class="plan">
+      <thead><tr><th>#</th><th>source</th><th>SQL executed on that source</th><th>rows</th><th>ms</th></tr></thead>
+      <tbody>
+      {% for p in rec._plan %}
+        <tr class="{{ 'err' if not p.ok }}">
+          <td>{{ p.step }}</td>
+          <td><span class="src-chip" style="border-color: {{ SOURCE_COLOURS[p.source] }}; color: {{ SOURCE_COLOURS[p.source] }}">{{ p.source }}</span></td>
+          <td><code>{{ p.sql or p.error }}</code>{% if p.params %}<div class="muted">params: {{ p.params }}</div>{% endif %}</td>
+          <td>{{ p.rowcount }}</td>
+          <td>{{ p.elapsed_ms }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </details>
+</section>
+
+<section class="card">
+  <details>
+    <summary><h2 style="display:inline">Raw rows returned by each source</h2></summary>
+    <pre class="json">{{ rec.raw | tojson(indent=2) }}</pre>
+  </details>
+</section>
+
+{% endblock %}
+{% block scripts %}
+<script>
+async function fileReport(){
+  const btn = document.getElementById('fileBtn');
+  const msg = document.getElementById('fileMsg');
+  btn.disabled = true; btn.textContent = 'filing…';
+  try{
+    const r = await fetch('/api/report/' + encodeURIComponent({{ rec.code | tojson }}), {method:'POST'});
+    const j = await r.json();
+    const created = j.response && j.response.created;
+    msg.className = 'file-msg ok';
+    msg.innerHTML = created
+      ? 'Filed as <b>' + created.report_ref + '</b> (' + created.lab_result + ')'
+        + (j.response.supplier_flag_propagation && j.response.supplier_flag_propagation.matched
+            ? '<br>Supplier <b>' + j.response.request.reported_against_supplier + '</b> blacklisted in the distributor DB.'
+            : '')
+      : 'Ministry response: ' + JSON.stringify(j.response);
+    btn.textContent = 'reported ✓';
+  }catch(e){
+    msg.className = 'file-msg err'; msg.textContent = 'failed: ' + e;
+    btn.disabled = false; btn.textContent = 'Report to Ministry of Consumer Affairs';
+  }
+}
+</script>
+{% endblock %}

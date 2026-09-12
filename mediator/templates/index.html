@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Verify an item &mdash; Asali / Nakali{% endblock %}
+{% block body %}
+
+<section class="hero">
+  <h1>Is this medicine <span class="asali">Asali</span> or <span class="nakali">Nakali</span>?</h1>
+  <p>
+    Enter the unique code printed on the pack. The mediator queries four
+    independently designed databases &mdash; the <b>manufacturer</b>, the
+    <b>distributor</b>, the <b>retail vendor</b> and the
+    <b>Ministry of Consumer Affairs</b> &mdash; joins them on the item code and
+    returns the complete history: genuine or not, when it was procured, and who
+    supplied it.
+  </p>
+
+  <form class="search" action="" onsubmit="event.preventDefault(); go();">
+    <input id="code" list="codes" autocomplete="off" spellcheck="false"
+           placeholder="e.g. SLP-AMOX500-B2401-0007">
+    <datalist id="codes">
+      {% for c, label in demo_codes %}<option value="{{ c }}">{{ label }}</option>{% endfor %}
+    </datalist>
+    <button type="submit">Verify&nbsp;&rarr;</button>
+  </form>
+</section>
+
+<section>
+  <h2>Sample codes on file</h2>
+  <div class="code-grid">
+    {% for c, label in demo_codes %}
+    <a class="code-card" href="{{ url_for('item_page', code=c) }}">
+      <div class="cc-code">{{ c }}</div>
+      <div class="cc-label">{{ label }}</div>
+    </a>
+    {% endfor %}
+  </div>
+  <p class="muted">
+    Try a <code>ZZZ-…</code> code (a "ghost" code that was never manufactured),
+    <code>SLP-VITD3-B2404-0050</code> (more units sold than were ever made), or
+    <code>MRC-DOLO650-B2403-0044</code> (broken chain of custody).
+  </p>
+</section>
+
+{% endblock %}
+{% block scripts %}
+<script>
+function go(){
+  const v = document.getElementById('code').value.trim();
+  if (v) window.location = '/item/' + encodeURIComponent(v);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Integration lab{% endblock %}
+{% block body %}
+
+<h1>Integration lab</h1>
+<p class="muted">
+  How the four isolated databases are discovered, matched and wired together.
+</p>
+
+<section class="card">
+  <h2>1 &middot; Data sources (live)</h2>
+  <table class="plan">
+    <thead><tr><th>source</th><th>endpoint</th><th>status</th><th>tables</th><th>rows</th><th>latency</th></tr></thead>
+    <tbody>
+    {% for s in health %}
+      <tr>
+        <td><span class="src-chip" style="border-color: {{ SOURCE_COLOURS[s.source] }}; color: {{ SOURCE_COLOURS[s.source] }}">{{ s.source }}</span></td>
+        <td><code>{{ s.url }}</code></td>
+        <td>{{ '🟢 up' if s.status == 'up' else '🔴 ' ~ s.get('error','down') }}</td>
+        <td class="muted">{{ s.get('row_counts', {}).keys()|list|join(', ') }}</td>
+        <td>{{ s.get('total_rows', '—') }}</td>
+        <td>{{ s.get('latency_ms', '—') }} ms</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% if error %}
+  <section class="card"><p class="file-msg err">schema matcher error: {{ error }}</p></section>
+{% elif report %}
+
+<section class="card">
+  <h2>2 &middot; Schema matching algorithm</h2>
+  <p>
+    score = {{ report.weights.name }}·name&nbsp;+&nbsp;{{ report.weights.type }}·type&nbsp;+&nbsp;{{ report.weights.value }}·value&nbsp;&nbsp;
+    (match when ≥ {{ report.threshold }}).
+    {{ report.column_count }} columns compared, {{ report.cross_source_pairs_matched }} cross-source pairs matched.
+  </p>
+
+  <h3>Similarity matrix <span class="muted">(the item-code cluster + a deliberate "licence" trap)</span></h3>
+  <div class="matrix-scroll">
+  <table class="matrix">
+    <thead><tr><th></th>{% for l in report.matrix.labels %}<th>{{ l }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for row in report.matrix.rows %}
+      <tr><th>{{ row.label }}</th>
+      {% for cell in row.cells %}
+        {% if cell.self %}<td class="mc self">1.00</td>
+        {% elif cell.same_source %}<td class="mc na">·</td>
+        {% else %}
+          <td class="mc" style="background: rgba(56,189,248,{{ cell.score }});"
+              title="{{ cell.score }}">{{ '%.2f'|format(cell.score) }}{% if cell.match %}<span class="tick">✓</span>{% endif %}</td>
+        {% endif %}
+      {% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted">
+    The <b>licence</b> columns (<code>mfg.license_no</code> vs <code>dist.drug_license</code>) have similar
+    names but disjoint values &mdash; instance-based matching correctly refuses to merge them.
+  </p>
+
+  <h3>Discovered clusters (semantically equal columns)</h3>
+  {% for cl in report.clusters %}
+  <div class="cluster">
+    <div class="cl-head">
+      cluster of {{ cl.size }} &middot; min pair score {{ '%.2f'|format(cl.min_pair_score) }}
+      {% if report.global_join_key and cl.members == report.global_join_key.members %}
+        <span class="cf-tag">GLOBAL JOIN KEY</span>{% endif %}
+    </div>
+    <ul>{% for mbr in cl.members %}<li><code>{{ mbr }}</code></li>{% endfor %}</ul>
+  </div>
+  {% endfor %}
+</section>
+
+{% endif %}
+
+<section class="card">
+  <h2>3 &middot; Mediated schema &mdash; Global-As-View (GAV) mapping</h2>
+  <p class="muted">
+    The matcher <i>discovers</i> the correspondences; this curated map is what the
+    federation engine queries against. Views: <code>{{ views.keys()|list|join('</code>, <code>') }}</code>.
+  </p>
+  <table class="gav">
+    <thead><tr><th>mediated attribute</th><th>source expressions</th></tr></thead>
+    <tbody>
+    {% for attr, srcmap in gav.items() %}
+      <tr>
+        <td><code>{{ attr }}</code></td>
+        <td>
+          {% for k, val in srcmap.items() %}
+            {% if k == 'note' %}<div class="muted">↳ {{ val }}</div>
+            {% else %}<div><span class="src-chip" style="border-color: {{ SOURCE_COLOURS.get(k,'#888') }}; color: {{ SOURCE_COLOURS.get(k,'#888') }}">{{ k }}</span> <code>{{ val }}</code></div>{% endif %}
+          {% endfor %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>4 &middot; Communication between the data sources</h2>
+  <ul class="bullets">
+    <li>Mediator &rarr; every source: <code>POST /query</code> (parameterised SELECT, parallel).</li>
+    <li>Mediator &rarr; Ministry: <code>POST /reports</code> writes a counterfeit report back.</li>
+    <li>Ministry &rarr; Distributor: <code>POST /flag-supplier</code> &mdash; a confirmed
+        counterfeit report auto-blacklists the named supplier in the distributor DB.</li>
+    <li>All traffic is JSON over HTTP; no source can read another source's database file.</li>
+  </ul>
+</section>
+
+{% endblock %}
