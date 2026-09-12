@@ -9,7 +9,7 @@ import os
 import sys
 
 from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
@@ -24,15 +24,24 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 def create_app():
     app = FastAPI(title="Asali / Nakali mediator")
-    app.mount("/static", StaticFiles(directory=os.path.join(_HERE, "static")), name="static")
+    static_dir = os.path.join(_HERE, "static")
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
     templates = Jinja2Templates(directory=os.path.join(_HERE, "templates"))
     templates.env.globals["SOURCE_COLOURS"] = config.SOURCE_COLOURS
     templates.env.filters["tojson"] = lambda obj, **kw: Markup(json.dumps(obj, **kw))
+    # cache-busts /static/* whenever a file changes, so browsers never serve a
+    # stale stylesheet/script after an edit + restart
+    try:
+        newest_mtime = max(os.path.getmtime(os.path.join(static_dir, f)) for f in os.listdir(static_dir))
+        templates.env.globals["STATIC_VERSION"] = str(int(newest_mtime))
+    except (OSError, ValueError):
+        templates.env.globals["STATIC_VERSION"] = "0"
 
     def render(name: str, request: Request, **ctx):
         return templates.TemplateResponse(
-            request, name, {"url_for": request.url_for, **ctx}
+            request, name,
+            {"url_for": request.url_for, "current_path": request.url.path, **ctx},
         )
 
     # ----------------------------- pages ------------------------------- #
@@ -87,7 +96,9 @@ def create_app():
 
     @app.post("/api/report/{code:path}")
     def api_report(code: str):
-        return federation.file_report(code)
+        result = federation.file_report(code)
+        status = 200 if result.get("ok", True) else 502
+        return JSONResponse(content=result, status_code=status)
 
     return app
 

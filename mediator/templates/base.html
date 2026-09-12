@@ -4,18 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Asali / Nakali{% endblock %}</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v={{ STATIC_VERSION }}">
 </head>
 <body>
 <header class="topbar">
   <a class="brand" href="{{ url_for('home') }}">
-    <span class="logo">✦</span>
-    <span>Asali&nbsp;/&nbsp;Nakali <small>authenticity mediator</small></span>
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+           stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3 4.5 5.8v5.6c0 4.9 3.2 8.9 7.5 10.6 4.3-1.7 7.5-5.7 7.5-10.6V5.8Z"/>
+        <path d="M8.7 12.2l2.3 2.3 4.3-4.6"/>
+      </svg>
+    </span>
+    <span class="brand-text">Asali&nbsp;/&nbsp;Nakali <small>authenticity mediator</small></span>
   </a>
   <nav>
-    <a href="{{ url_for('home') }}">Verify item</a>
-    <a href="{{ url_for('lab_page') }}">Integration lab</a>
-    <a href="{{ url_for('query_page') }}">Federated SQL</a>
+    <a href="{{ url_for('home') }}" class="{{ 'active' if current_path == '/' or current_path.startswith('/item/') else '' }}">Verify item</a>
+    <a href="{{ url_for('lab_page') }}" class="{{ 'active' if current_path == '/lab' else '' }}">Integration lab</a>
+    <a href="{{ url_for('query_page') }}" class="{{ 'active' if current_path == '/query' else '' }}">Federated SQL</a>
   </nav>
 </header>
 

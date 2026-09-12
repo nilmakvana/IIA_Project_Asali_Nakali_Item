@@ -9,13 +9,14 @@
 
 <section class="card">
   <h2>1 &middot; Data sources (live)</h2>
+  <div class="matrix-scroll">
   <table class="plan">
     <thead><tr><th>source</th><th>endpoint</th><th>status</th><th>tables</th><th>rows</th><th>latency</th></tr></thead>
     <tbody>
     {% for s in health %}
       <tr>
         <td><span class="src-chip" style="border-color: {{ SOURCE_COLOURS[s.source] }}; color: {{ SOURCE_COLOURS[s.source] }}">{{ s.source }}</span></td>
-        <td><code>{{ s.url }}</code></td>
+        <td><code class="nowrap">{{ s.url }}</code></td>
         <td>{{ '🟢 up' if s.status == 'up' else '🔴 ' ~ s.get('error','down') }}</td>
         <td class="muted">{{ s.get('row_counts', {}).keys()|list|join(', ') }}</td>
         <td>{{ s.get('total_rows', '—') }}</td>
@@ -24,6 +25,7 @@
     {% endfor %}
     </tbody>
   </table>
+  </div>
 </section>
 
 {% if error %}

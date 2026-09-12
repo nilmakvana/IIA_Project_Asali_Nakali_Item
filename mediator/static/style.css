@@ -34,7 +34,10 @@ body{
   -webkit-font-smoothing:antialiased;
 }
 a{color:var(--accent);text-decoration:none}
-a:hover{text-decoration:underline}
+a:hover{color:var(--accent-ink)}
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;
+}
 h1{font-size:1.55rem;font-weight:650;letter-spacing:-.01em;margin:.1em 0 .5em}
 h2{font-size:1.08rem;font-weight:650;letter-spacing:-.005em;margin:.1em 0 .7em}
 h3{font-size:.83rem;font-weight:650;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:1.4em 0 .6em}
@@ -53,18 +56,27 @@ code{
   border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;
   box-shadow:var(--shadow-sm);
 }
-.brand{display:flex;gap:11px;align-items:center;color:var(--ink);font-weight:700}
+.brand{
+  display:flex;gap:11px;align-items:center;color:var(--ink);font-weight:700;
+  padding:6px 8px 6px 6px;margin-left:-6px;border-radius:10px;
+  transition:background-color .15s ease;
+}
+.brand:hover{background:var(--surface-2);color:var(--ink)}
 .brand .logo{
   display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;
-  background:var(--accent);color:#fff;font-size:1rem;
+  background:var(--accent);color:#fff;flex:none;
+  box-shadow:0 1px 3px rgba(37,99,235,.35);
 }
+.brand-text{line-height:1.25}
 .brand small{display:block;font-weight:500;font-size:.66rem;letter-spacing:.16em;
   text-transform:uppercase;color:var(--faint);margin-top:1px}
+.topbar nav{display:flex;align-items:center}
 .topbar nav a{
-  margin-left:6px;padding:8px 12px;border-radius:8px;color:var(--muted);
-  font-weight:600;font-size:.92rem;
+  margin-left:4px;padding:8px 12px;border-radius:8px;color:var(--muted);
+  font-weight:600;font-size:.92rem;transition:background-color .15s ease, color .15s ease;
 }
-.topbar nav a:hover{color:var(--ink);background:var(--surface-2);text-decoration:none}
+.topbar nav a:hover{color:var(--ink);background:var(--surface-2)}
+.topbar nav a.active{color:var(--accent-ink);background:var(--accent-soft)}
 
 /* ---------- shell ---------- */
 .wrap{max-width:1120px;margin:0 auto;padding:30px 28px 10px}
@@ -73,11 +85,43 @@ code{
 .back{color:var(--muted);font-weight:500}
 .back:hover{color:var(--ink)}
 
+@media (max-width:640px){
+  .topbar{padding:0 16px;height:auto;flex-wrap:wrap;gap:6px 0;padding-top:10px;padding-bottom:10px}
+  .brand small{display:none}
+  .topbar nav{margin-left:auto}
+  .topbar nav a{margin-left:2px;padding:7px 9px;font-size:.85rem}
+  .wrap{padding:20px 16px 10px}
+}
+
 /* ---------- home ---------- */
-.hero{margin-bottom:14px}
+.hero{margin-bottom:8px}
 .hero h1{font-size:1.9rem}
 .hero .asali{color:var(--asali)} .hero .nakali{color:var(--nakali)}
 .hero p{max-width:74ch;color:var(--ink-soft)}
+
+.flow{
+  display:flex;align-items:stretch;gap:0;margin:26px 0 30px;max-width:900px;
+  flex-wrap:wrap;
+}
+.flow-step{
+  flex:1;min-width:150px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow-sm);
+  position:relative;
+}
+.flow-icon{
+  display:inline-grid;place-items:center;width:34px;height:34px;border-radius:9px;
+  color:#fff;margin-bottom:10px;
+}
+.flow-step h4{margin:0 0 3px;font-size:.92rem;font-weight:700;color:var(--ink)}
+.flow-step p{margin:0;font-size:.8rem;color:var(--muted);line-height:1.45}
+.flow-arrow{
+  display:flex;align-items:center;justify-content:center;color:var(--faint);
+  padding:0 6px;flex:none;
+}
+@media (max-width:760px){
+  .flow{flex-direction:column}
+  .flow-arrow{transform:rotate(90deg);padding:2px 0;margin-left:17px}
+}
 .search{display:flex;gap:10px;margin:22px 0 6px;max-width:660px}
 .search input{
   flex:1;padding:12px 14px;border-radius:var(--radius);border:1px solid var(--line-strong);
@@ -201,6 +245,7 @@ button:disabled{opacity:.55;cursor:default;filter:none}
 .plan tbody tr:hover, .plan tr:hover{background:var(--surface-2)}
 .plan tr.err td{background:var(--nakali-bg)}
 .plan code{white-space:pre-wrap;word-break:break-word;background:transparent;border:0;padding:0;color:#334155}
+.plan code.nowrap{white-space:nowrap;word-break:normal}
 
 .src-list{list-style:none;padding:0;margin:0}
 .src-list li{padding:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem}

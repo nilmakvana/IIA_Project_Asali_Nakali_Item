@@ -23,6 +23,40 @@
   </form>
 </section>
 
+<div class="flow">
+  <div class="flow-step">
+    <span class="flow-icon" style="background:{{ SOURCE_COLOURS.manufacturer }}">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V10l6 4v-4l6 4V7l6 4v10z"/><path d="M3 21h18"/></svg>
+    </span>
+    <h4>Manufacturer</h4>
+    <p>Registers each batch under a unique code.</p>
+  </div>
+  <div class="flow-arrow"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+  <div class="flow-step">
+    <span class="flow-icon" style="background:{{ SOURCE_COLOURS.distributor }}">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h9V6H3zM12 10h4l4 4v3h-8z"/><circle cx="7" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/></svg>
+    </span>
+    <h4>Distributor</h4>
+    <p>Ships stock from suppliers to retail vendors.</p>
+  </div>
+  <div class="flow-arrow"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+  <div class="flow-step">
+    <span class="flow-icon" style="background:{{ SOURCE_COLOURS.vendor }}">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10V4h16v6M4 10l1 10h14l1-10M4 10h16" /><path d="M9 14v6M15 14v6"/></svg>
+    </span>
+    <h4>Retail vendor</h4>
+    <p>Scans the code at purchase, sells to customers.</p>
+  </div>
+  <div class="flow-arrow"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+  <div class="flow-step">
+    <span class="flow-icon" style="background:{{ SOURCE_COLOURS.ministry }}">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4.5 5.8v5.6c0 4.9 3.2 8.9 7.5 10.6 4.3-1.7 7.5-5.7 7.5-10.6V5.8Z"/><path d="M8.7 12.2l2.3 2.3 4.3-4.6"/></svg>
+    </span>
+    <h4>Ministry</h4>
+    <p>Holds the verified registry and counterfeit reports.</p>
+  </div>
+</div>
+
 <section>
   <h2>Sample codes on file</h2>
   <div class="code-grid">

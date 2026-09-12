@@ -652,8 +652,20 @@ def file_report(code: str, rec: dict = None) -> dict:
                    + ", ".join(f["code"] for f in v["red_flags"]),
         "filed_by": "authenticity-mediator",
     }
-    r = requests.post(f"{config.service_url('ministry')}/reports", json=body, timeout=_TIMEOUT)
-    return {"request": body, "response": r.json(), "http_status": r.status_code}
+    try:
+        r = requests.post(f"{config.service_url('ministry')}/reports", json=body, timeout=_TIMEOUT)
+    except requests.exceptions.RequestException as exc:
+        return {
+            "ok": False,
+            "request": body,
+            "error": f"could not reach the ministry service at "
+                     f"{config.service_url('ministry')}: {exc}",
+        }
+    try:
+        response_json = r.json()
+    except ValueError:
+        response_json = {"error": f"ministry service returned non-JSON (HTTP {r.status_code})"}
+    return {"ok": r.ok, "request": body, "response": response_json, "http_status": r.status_code}
 
 
 def source_health() -> list:

@@ -176,7 +176,14 @@ async function fileReport(){
   btn.disabled = true; btn.textContent = 'filing…';
   try{
     const r = await fetch('/api/report/' + encodeURIComponent({{ rec.code | tojson }}), {method:'POST'});
-    const j = await r.json();
+    let j;
+    try{ j = await r.json(); }
+    catch(parseErr){ throw new Error('server returned an unreadable response (HTTP ' + r.status + ')'); }
+
+    if(j.ok === false){
+      throw new Error(j.error || 'the ministry service could not be reached');
+    }
+
     const created = j.response && j.response.created;
     msg.className = 'file-msg ok';
     msg.innerHTML = created
@@ -187,7 +194,8 @@ async function fileReport(){
       : 'Ministry response: ' + JSON.stringify(j.response);
     btn.textContent = 'reported ✓';
   }catch(e){
-    msg.className = 'file-msg err'; msg.textContent = 'failed: ' + e;
+    msg.className = 'file-msg err';
+    msg.textContent = 'failed: ' + (e.message || e) + ' — check the ministry service is running and reachable (try check_network.py).';
     btn.disabled = false; btn.textContent = 'Report to Ministry of Consumer Affairs';
   }
 }
