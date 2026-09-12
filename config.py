@@ -79,12 +79,38 @@ SOURCE_COLOURS = {
 
 def _load_source_overrides() -> dict:
     if not os.path.exists(SOURCES_FILE):
+        # Common typo/misplacement guard: warn if something *close* to
+        # sources.json exists right next to it, since a wrong filename here
+        # silently falls back to 127.0.0.1 with no other symptom than
+        # "it just won't connect to the other machine".
+        try:
+            near_misses = [
+                f for f in os.listdir(BASE_DIR)
+                if f != "sources.example.json"
+                and f.lower() in ("source.json", "sources.json.txt", "source.json.txt")
+            ]
+        except OSError:
+            near_misses = []
+        if near_misses:
+            print(f"[config] WARNING: no {SOURCES_FILE} found, but {near_misses} "
+                  f"exists in the same folder - rename it to exactly 'sources.json' "
+                  f"(project root, next to config.py). Until then, every source "
+                  f"defaults to 127.0.0.1.")
         return {}
     try:
         with open(SOURCES_FILE) as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"[config] WARNING: found {SOURCES_FILE} but could not parse it "
+              f"({exc}) - every source will default to 127.0.0.1 until this is "
+              f"fixed. Check it's valid JSON (e.g. paste it into jsonlint.com).")
         return {}
+    unknown = [k for k in data if k != "_comment" and k not in SERVICES]
+    if unknown:
+        print(f"[config] WARNING: {SOURCES_FILE} has unrecognised key(s) {unknown} "
+              f"- expected some of {list(SERVICES)}. Typo? These entries are "
+              f"ignored, so that source will default to 127.0.0.1.")
+    return data
 
 
 _OVERRIDES = _load_source_overrides()

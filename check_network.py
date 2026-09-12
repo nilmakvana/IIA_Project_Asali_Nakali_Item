@@ -11,6 +11,7 @@ over the network and how many rows are in its tables - i.e. proof that the
 service on that OTHER machine is up, its database is populated, and there is
 no firewall/Wi-Fi problem between here and there.
 """
+import os
 import sys
 import time
 
@@ -20,8 +21,19 @@ import config
 
 
 def main():
-    print(f"Reading source locations from: "
-          f"{'sources.json' if config.using_remote_sources() else '(none found - using 127.0.0.1)'}\n")
+    if os.path.exists(config.SOURCES_FILE):
+        overridden = [n for n in config.SERVICES if n in config._OVERRIDES]
+        print(f"sources.json: {config.SOURCES_FILE}  (found)")
+        if overridden:
+            print(f"  overrides:  {', '.join(overridden)}")
+        missing = [n for n in config.SERVICES if n not in overridden]
+        if missing:
+            print(f"  defaulting to 127.0.0.1 (not listed in the file): {', '.join(missing)}")
+    else:
+        print(f"sources.json: {config.SOURCES_FILE}  (NOT FOUND)")
+        print("  every source will default to 127.0.0.1 - if you meant to point at "
+              "another machine, copy sources.example.json to exactly that path.")
+    print()
 
     all_ok = True
     for name in config.SERVICES:
