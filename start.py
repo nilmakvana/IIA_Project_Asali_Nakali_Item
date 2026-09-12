@@ -103,12 +103,33 @@ def _wait_healthy(targets, timeout=20):
     return not pending
 
 
+_KNOWN_FLAGS = {
+    "--services-only", "--mediator-only", "--with-mediator",
+    "--rebuild", "--no-browser", "--lan",
+}
+
+
 def _parse_args(argv):
     services_arg = None
     for a in argv:
         if a.startswith("--services="):
             services_arg = a.split("=", 1)[1]
     flags = {a for a in argv if not a.startswith("--services=")}
+
+    # A typo'd or unrecognised flag (--service=... instead of --services=...,
+    # a space instead of '=', etc.) must NOT be silently ignored: that would
+    # quietly fall back to "everything on 127.0.0.1", which looks like it
+    # started fine but is unreachable from any other machine - exactly the
+    # confusing failure mode this project has hit before. Fail loud instead.
+    unknown = [a for a in flags if a.startswith("--") and a not in _KNOWN_FLAGS]
+    if unknown:
+        sys.exit(
+            f"unrecognised flag(s): {unknown}\n"
+            f"known flags: {sorted(_KNOWN_FLAGS)} and --services=<name1,name2,...>\n"
+            f"(did you mean --services=... ? note the trailing 's' and the '=', "
+            f"not a space)"
+        )
+
     return {
         "services_arg": services_arg,
         "services_only": "--services-only" in flags,
@@ -141,6 +162,15 @@ def main():
     )
     lan = a["lan"] or a["services_only"] or a["mediator_only"] or a["services_arg"] is not None
     bind_host = config.BIND_HOST if lan else "127.0.0.1"
+
+    print()
+    if lan:
+        print(f"BIND MODE: network ({bind_host}) - reachable from other machines on the LAN")
+    else:
+        print("BIND MODE: localhost only (127.0.0.1) - NOT reachable from other machines.")
+        print("           pass --services=<name(s)>, --services-only, --mediator-only, "
+              "or --lan to expose this on the network.")
+    print()
 
     for name in requested:
         db_path = config.SERVICES[name]["db"]
