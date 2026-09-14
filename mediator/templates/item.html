@@ -189,7 +189,7 @@ async function fileReport(){
     msg.innerHTML = created
       ? 'Filed as <b>' + created.report_ref + '</b> (' + created.lab_result + ')'
         + (j.response.supplier_flag_propagation && j.response.supplier_flag_propagation.matched
-            ? '<br>Supplier <b>' + j.response.request.reported_against_supplier + '</b> blacklisted in the distributor DB.'
+            ? '<br>Supplier <b>' + j.request.reported_against_supplier + '</b> blacklisted in the distributor DB.'
             : '')
       : 'Ministry response: ' + JSON.stringify(j.response);
     btn.textContent = 'reported ✓';

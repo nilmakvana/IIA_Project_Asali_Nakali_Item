@@ -98,7 +98,24 @@ def value_similarity(a_vals, b_vals) -> float:
     B = {str(v).strip().lower() for v in b_vals if str(v).strip()}
     if not A or not B:
         return 0.0
-    return round(len(A & B) / len(A | B), 4)
+    inter = len(A & B)
+    union = len(A | B)
+    jaccard = inter / union
+    # Containment / overlap coefficient: "what fraction of the SMALLER
+    # sample's values are found in the larger sample". A small reference
+    # table (e.g. a handful of counterfeit reports) matched against a large
+    # transactional table (hundreds of batches) shares the same join key,
+    # but plain Jaccard punishes that pairing anyway - the union is
+    # dominated by the large side's unrelated values, so the ratio collapses
+    # even when every value on the small side is genuinely present on the
+    # large side. Containment measures exactly the thing that matters here.
+    # Guarded for very small sets (<2 distinct values), where containment
+    # alone would be satisfied too easily by chance (e.g. a single repeated
+    # value like a country column).
+    if min(len(A), len(B)) >= 2:
+        containment = inter / min(len(A), len(B))
+        return round(0.4 * jaccard + 0.6 * containment, 4)
+    return round(jaccard, 4)
 
 
 def _looks_like_surrogate_key(col) -> bool:

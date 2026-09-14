@@ -12,6 +12,12 @@ Design rules honoured here (from the project brief):
     supplier / vendor names, and price).
   * Data is seeded with 12 deliberate scenarios so the federated verdict engine
     has something interesting to say (see SCENARIOS note at bottom).
+  * On top of those 12 hand-crafted scenarios, a larger deterministic
+    "background" catalogue of ordinary genuine items is generated (see
+    BULK BACKGROUND DATA below) purely so the databases look like real,
+    reasonably-populated systems rather than a handful of demo rows - every
+    lab table, sample query, and schema-match pulls from a proper volume of
+    data, not just the 12 headline codes.
 """
 
 import os
@@ -29,6 +35,147 @@ def _connect(path):
     con = sqlite3.connect(path)
     con.execute("PRAGMA foreign_keys = ON")
     return con
+
+
+# =============================================================================
+#  BULK BACKGROUND DATA
+#
+#  A deterministic (no randomness) catalogue of ~54 additional genuine
+#  batches, spread across 9 new manufacturers, 5 new suppliers and 5 new
+#  vendors, fully distributed and sold - all clean/ASALI, none of them
+#  touching the 12 hand-crafted codes below.
+#
+#  Deterministic matters here for a real reason: on the distributed
+#  deployment each of the 4 databases can be built independently, on its own
+#  machine, with no access to the other three (see DEPLOYMENT.md). The only
+#  way distributor.db's `source_company` text ends up identical to
+#  manufacturer.db's `company_name` text - despite being built by two
+#  completely separate processes, possibly on two different laptops - is if
+#  both are derived from the exact same fixed Python data below, with zero
+#  randomness anywhere in the pipeline. The same goes for vendor names shared
+#  between distributor.db and vendor.db, and item codes shared across all
+#  four.
+# =============================================================================
+
+#  company_id, name, license_no, factory_location, short_code, established_year
+_EXTRA_COMPANIES = [
+    (4,  "Everwell Pharmaceuticals", "MFG-LIC-DL-3301", "Delhi Unit-1",    "EVW", 2005),
+    (5,  "Nova Biotech Labs",        "MFG-LIC-TN-4420", "Chennai Unit-1",  "NBL", 1998),
+    (6,  "Trident Formulations",     "MFG-LIC-UP-5588", "Lucknow Unit-1",  "TRD", 2010),
+    (7,  "Green Cross Pharma",       "MFG-LIC-PB-2214", "Ludhiana Unit-1", "GCP", 1992),
+    (8,  "Vedanta Life Sciences",    "MFG-LIC-RJ-7765", "Jaipur Unit-1",   "VLS", 2003),
+    (9,  "Orion Drug House",         "MFG-LIC-WB-1190", "Kolkata Unit-1",  "ODH", 1985),
+    (10, "Pinnacle Pharma Works",    "MFG-LIC-HR-3345", "Gurugram Unit-1", "PPW", 2012),
+    (11, "Silverline Biotech",       "MFG-LIC-MP-6602", "Indore Unit-1",   "SLB", 2007),
+    (12, "Crescent Remedies Ltd",    "MFG-LIC-KL-8890", "Kochi Unit-1",    "CRL", 1999),
+]
+
+#  sup_id, sup_name, drug_license, gstin, region
+_EXTRA_SUPPLIERS = [
+    (4, "Bharat Pharma Distributors", "DL-DIST-6601", "27BPD1122K1Z4", "West"),
+    (5, "National Meditrade",         "DL-DIST-7702", "07NMT3344L1Z8", "North"),
+    (6, "Coastal Health Supplies",    "DL-DIST-8803", "33CHS5566M1Z1", "South"),
+    (7, "Highway Pharma Logistics",   "DL-DIST-9904", "24HPL7788N1Z6", "West"),
+    (8, "Metro Drug House",           "DL-DIST-1105", "19MDH9900P1Z3", "East"),
+]
+
+#  vendorId, vendorName, shopLicense, city, pincode
+_EXTRA_VENDORS = [
+    (4, "Apollo Health Mart", "RET-CHEM-1001", "Delhi",   "110001"),
+    (5, "MedPlus Express",    "RET-CHEM-1002", "Chennai", "600001"),
+    (6, "Wellness Forever",   "RET-CHEM-1003", "Nagpur",  "440001"),
+    (7, "Community Chemists", "RET-CHEM-1004", "Jaipur",  "302001"),
+    (8, "GreenLeaf Pharmacy", "RET-CHEM-1005", "Kochi",   "682001"),
+]
+
+#  brand, generic, dosage_form, strength, hsn_code - reused across companies
+#  (multiple manufacturers making the same generic is normal in pharma)
+_PRODUCT_CATALOGUE = [
+    ("Cefimax",    "Cefixime",          "Tablet",    "200 mg",   "3004"),
+    ("Ranidom",    "Ranitidine",        "Tablet",    "150 mg",   "3004"),
+    ("Loraheal",   "Loratadine",        "Tablet",    "10 mg",    "3004"),
+    ("Metrozole",  "Metronidazole",     "Tablet",    "400 mg",   "3004"),
+    ("Ambrolite",  "Ambroxol",          "Syrup",     "15mg/5ml", "3004"),
+    ("Diclotop",   "Diclofenac",        "Gel",       "1% w/w",   "3004"),
+    ("Omepraz",    "Omeprazole",        "Capsule",   "20 mg",    "3004"),
+    ("Ciproflox",  "Ciprofloxacin",     "Tablet",    "500 mg",   "3004"),
+    ("Levocet",    "Levocetirizine",    "Tablet",    "5 mg",     "3004"),
+    ("Vitawellc",  "Ascorbic Acid",     "Tablet",    "500 mg",   "3004"),
+    ("Zincoplus",  "Zinc Sulphate",     "Syrup",     "20mg/5ml", "3004"),
+    ("Ferrotab",   "Ferrous Sulphate",  "Tablet",    "150 mg",   "3004"),
+    ("Calcimax",   "Calcium Carbonate", "Tablet",    "500 mg",   "3004"),
+    ("Amlodex",    "Amlodipine",        "Tablet",    "5 mg",     "3004"),
+    ("Losarpress", "Losartan",          "Tablet",    "50 mg",    "3004"),
+    ("Glimenorm",  "Glimepiride",       "Tablet",    "2 mg",     "3004"),
+    ("Zithrotab",  "Azithromycin",      "Tablet",    "500 mg",   "3004"),
+    ("Doxyfast",   "Doxycycline",       "Capsule",   "100 mg",   "3004"),
+    ("Ondanstop",  "Ondansetron",       "Tablet",    "4 mg",     "3004"),
+    ("Salbunova",  "Salbutamol",        "Inhaler",   "100 mcg",  "3004"),
+]
+
+# Original 3 suppliers/vendors + the extra ones, so the bulk plan can pick
+# any of them (round-robin) exactly the way the manufacturer/distributor/
+# vendor catalogues already look, rather than isolating new data on its own.
+_ALL_SUPPLIER_IDS = [1, 2, 3] + [s[0] for s in _EXTRA_SUPPLIERS]
+_ALL_SUPPLIER_NAMES = ["MediReach Distributors", "HealthLine Supplies", "QuickPharma Traders"] + \
+    [s[1] for s in _EXTRA_SUPPLIERS]
+_ALL_VENDOR_IDS = [1, 2, 3] + [v[0] for v in _EXTRA_VENDORS]
+_ALL_VENDOR_NAMES = ["CityCare Chemist", "QuickMeds 24x7", "Wellness Pharmacy"] + \
+    [v[1] for v in _EXTRA_VENDORS]
+
+PRODUCTS_PER_COMPANY = 3
+BATCHES_PER_PRODUCT = 2
+
+
+def _build_bulk_plan():
+    """
+    One deterministic list of dicts describing every "background" batch -
+    everything build_manufacturer / build_distributor / build_vendor /
+    build_ministry need to independently generate their own matching rows.
+    Calling this twice (in two different processes) always returns exactly
+    the same data - no randomness, only fixed lists and arithmetic on the
+    running id counters.
+    """
+    plan = []
+    product_id = 11   # continues after the 10 hand-crafted products
+    batch_id = 11      # continues after the 10 hand-crafted batches
+    for ci, (company_id, company_name, _lic, factory, short, _year) in enumerate(_EXTRA_COMPANIES):
+        for j in range(PRODUCTS_PER_COMPANY):
+            brand, generic, form, strength, hsn = _PRODUCT_CATALOGUE[
+                (ci * PRODUCTS_PER_COMPANY + j) % len(_PRODUCT_CATALOGUE)
+            ]
+            for k in range(BATCHES_PER_PRODUCT):
+                code = f"{short}-{brand.upper()}-B{batch_id:04d}"
+                # kept strictly within 2024 (never 2025) so these dates can never
+                # coincidentally collide with the ministry's 2025 report/action dates
+                mfg_dt = datetime(2024, 1, 1) + timedelta(days=(batch_id * 11) % 360)
+                expiry_dt = mfg_dt + timedelta(days=730 + (batch_id * 17) % 300)
+                qty = 100 + (batch_id * 23) % 400
+                mrp = round(20 + (batch_id * 13) % 480 + 0.5, 2)
+                plan.append({
+                    "product_id": product_id,
+                    "batch_id": batch_id,
+                    "company_id": company_id,
+                    "company_name": company_name,
+                    "brand": brand,
+                    "generic": generic,
+                    "form": form,
+                    "strength": strength,
+                    "hsn": hsn,
+                    "code": code,
+                    "mfg_dt": mfg_dt,
+                    "expiry_dt": expiry_dt,
+                    "qty": qty,
+                    "mrp": mrp,
+                    "factory": factory,
+                    "supplier_id": _ALL_SUPPLIER_IDS[batch_id % len(_ALL_SUPPLIER_IDS)],
+                    "supplier_name": _ALL_SUPPLIER_NAMES[batch_id % len(_ALL_SUPPLIER_NAMES)],
+                    "vendor_id": _ALL_VENDOR_IDS[batch_id % len(_ALL_VENDOR_IDS)],
+                    "vendor_name": _ALL_VENDOR_NAMES[batch_id % len(_ALL_VENDOR_NAMES)],
+                })
+                batch_id += 1
+            product_id += 1
+    return plan
 
 
 # --------------------------------------------------------------------------- #
@@ -104,6 +251,29 @@ def build_manufacturer(path):
     c.executemany("INSERT INTO companies VALUES (?,?,?,?,?)", companies)
     c.executemany("INSERT INTO products VALUES (?,?,?,?,?,?,?)", products)
     c.executemany("INSERT INTO manufactured_batches VALUES (?,?,?,?,?,?,?,?)", batches)
+
+    # ---- bulk background data (see BULK BACKGROUND DATA note above) --------
+    extra_companies = [
+        (cid, name, lic, "India", year) for cid, name, lic, _factory, _short, year in _EXTRA_COMPANIES
+    ]
+    plan = _build_bulk_plan()
+    seen = set()
+    extra_products = []
+    for p in plan:
+        if p["product_id"] not in seen:
+            seen.add(p["product_id"])
+            extra_products.append(
+                (p["product_id"], p["company_id"], p["brand"], p["generic"], p["form"], p["strength"], p["hsn"])
+            )
+    extra_batches = [
+        (p["batch_id"], p["product_id"], p["code"], p["mfg_dt"].strftime("%Y-%m-%d"),
+         p["expiry_dt"].strftime("%Y-%m-%d"), p["qty"], p["mrp"], p["factory"])
+        for p in plan
+    ]
+    c.executemany("INSERT INTO companies VALUES (?,?,?,?,?)", extra_companies)
+    c.executemany("INSERT INTO products VALUES (?,?,?,?,?,?,?)", extra_products)
+    c.executemany("INSERT INTO manufactured_batches VALUES (?,?,?,?,?,?,?,?)", extra_batches)
+
     con.commit()
     con.close()
 
@@ -177,6 +347,35 @@ def build_distributor(path):
     c.executemany("INSERT INTO suppliers VALUES (?,?,?,?,?,?,?,?)", suppliers)
     c.executemany("INSERT INTO inbound_consignments VALUES (?,?,?,?,?)", consignments)
     c.executemany("INSERT INTO distributed_stock VALUES (?,?,?,?,?,?,?,?)", stock)
+
+    # ---- bulk background data (see BULK BACKGROUND DATA note above) --------
+    extra_suppliers = [
+        (sid, name, lic, gstin, region, f"ops{sid}@{name.split()[0].lower()}.example", 0, None)
+        for sid, name, lic, gstin, region in _EXTRA_SUPPLIERS
+    ]
+    plan = _build_bulk_plan()
+    extra_consignments = []
+    extra_stock = []
+    consignment_id = 6     # continues after the 5 hand-crafted consignments
+    dist_row_id = 12       # continues after the 11 hand-crafted stock rows
+    for p in plan:
+        received_on = (p["mfg_dt"] + timedelta(days=10)).strftime("%Y-%m-%d")
+        extra_consignments.append(
+            (consignment_id, p["supplier_id"], p["company_name"], received_on, f"INV-{9000 + consignment_id}")
+        )
+        dispatch_date = (p["mfg_dt"] + timedelta(days=18)).strftime("%Y-%m-%d")
+        qty_supplied = p["qty"] // 2
+        unit_price = round(p["mrp"] * 0.62, 2)
+        extra_stock.append(
+            (dist_row_id, consignment_id, p["code"], f"{p['brand']} {p['strength']} {p['form']}",
+             qty_supplied, unit_price, p["vendor_name"], dispatch_date)
+        )
+        consignment_id += 1
+        dist_row_id += 1
+    c.executemany("INSERT INTO suppliers VALUES (?,?,?,?,?,?,?,?)", extra_suppliers)
+    c.executemany("INSERT INTO inbound_consignments VALUES (?,?,?,?,?)", extra_consignments)
+    c.executemany("INSERT INTO distributed_stock VALUES (?,?,?,?,?,?,?,?)", extra_stock)
+
     con.commit()
     con.close()
 
@@ -273,6 +472,40 @@ def build_vendor(path):
         sale_id += 1
 
     c.executemany("INSERT INTO customerSales VALUES (?,?,?,?,?)", sales)
+
+    # ---- bulk background data (see BULK BACKGROUND DATA note above) --------
+    extra_vendors = list(_EXTRA_VENDORS)
+    bulk_plan = _build_bulk_plan()
+    extra_scans = []
+    scan_id_by_batch = {}
+    next_scan_id = 14   # continues after the 13 hand-crafted scans
+    for p in bulk_plan:
+        scan_ts = (p["mfg_dt"] + timedelta(days=25)).strftime("%Y-%m-%d 10:00")
+        selling_price = round(p["mrp"] * 0.97, 2)
+        extra_scans.append(
+            (next_scan_id, p["vendor_id"], p["code"], f"{p['brand'].upper()} {p['strength']}",
+             "10x10", selling_price, scan_ts, "")
+        )
+        scan_id_by_batch[p["batch_id"]] = next_scan_id
+        next_scan_id += 1
+    c.executemany("INSERT INTO vendors VALUES (?,?,?,?,?)", extra_vendors)
+    c.executemany("INSERT INTO purchaseScans VALUES (?,?,?,?,?,?,?,?)", extra_scans)
+
+    # 2-5 sales per background batch, deterministic, always well under the
+    # batch quantity and always well before expiry (no accidental red flags).
+    extra_sales = []
+    next_sale_id = sale_id   # continues right after the hand-crafted sales
+    for p in bulk_plan:
+        scan_id = scan_id_by_batch[p["batch_id"]]
+        n_sales = 2 + (p["batch_id"] % 4)
+        base = p["mfg_dt"] + timedelta(days=30)
+        for i in range(n_sales):
+            d = (base + timedelta(days=6 * i)).strftime("%Y-%m-%d")
+            ph = f"ph_{((p['batch_id'] * 1000 + i) * 2654435761) & 0xFFFFFFFF:08x}"
+            extra_sales.append((next_sale_id, scan_id, d, f"BILL-{p['batch_id']:04d}-{i+1:03d}", ph))
+            next_sale_id += 1
+    c.executemany("INSERT INTO customerSales VALUES (?,?,?,?,?)", extra_sales)
+
     con.commit()
     con.close()
 
@@ -341,6 +574,21 @@ def build_ministry(path):
     c.executemany("INSERT INTO counterfeit_reports VALUES (?,?,?,?,?,?,?,?,?)", reports)
     c.executemany("INSERT INTO verified_genuine_registry VALUES (?,?,?,?)", registry)
     c.executemany("INSERT INTO enforcement_actions VALUES (?,?,?,?,?)", actions)
+
+    # ---- bulk background data (see BULK BACKGROUND DATA note above) --------
+    # ~80% of the background batches get registered as verified-genuine
+    # (skip every 5th one, so "registration is voluntary" stays visible at
+    # this larger scale too, same as APX-AZITH250 in the hand-crafted set).
+    plan = _build_bulk_plan()
+    extra_registry = []
+    reg_id = 8   # continues after the 7 hand-crafted registry entries
+    for p in plan:
+        if p["batch_id"] % 5 != 0:
+            verified_on = (p["mfg_dt"] + timedelta(days=15)).strftime("%Y-%m-%d")
+            extra_registry.append((reg_id, p["code"], "CDSCO", verified_on))
+            reg_id += 1
+    c.executemany("INSERT INTO verified_genuine_registry VALUES (?,?,?,?)", extra_registry)
+
     con.commit()
     con.close()
 
@@ -386,6 +634,11 @@ def build_all(verbose=True):
 #  ZZZ-CIPRO500-FAKE-9001  NAKALI   ghost code - never manufactured (+ confirmed report)
 #  ZZZ-REMDES-FAKE-9099    NAKALI   ghost code - never manufactured, NOT yet reported
 #                                   -> GUI can file the report back to the Ministry
+#
+#  Everything else in each database (~54 additional batches across 9 more
+#  manufacturers, fully distributed and sold through 5 more suppliers and 5
+#  more vendors) is deterministic "background" data - all clean/ASALI, added
+#  purely for realistic data volume. See _build_bulk_plan() above.
 # ----------------------------------------------------------------------------
 
 if __name__ == "__main__":
