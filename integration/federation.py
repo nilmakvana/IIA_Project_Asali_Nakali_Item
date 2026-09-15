@@ -668,6 +668,30 @@ def file_report(code: str, rec: dict = None) -> dict:
     return {"ok": r.ok, "request": body, "response": response_json, "http_status": r.status_code}
 
 
+def friendly_error(text) -> str:
+    """
+    Collapse a raw connection exception (a multi-line stack of
+    HTTPConnectionPool/MaxRetryError/NewConnectionError/OSError, wording that
+    also differs by OS) into one short, professional line for the GUI.
+    Keyword-matched rather than type-matched so it works the same whether we
+    were handed an exception object or its already-stringified form, and
+    across macOS/Linux/Windows error wording.
+    """
+    t = str(text or "").lower()
+    if any(s in t for s in ("connection refused", "actively refused", "winerror 10061")):
+        return "Connection refused - the service isn't running on that port."
+    if any(s in t for s in ("name or service not known", "nodename nor servname",
+                            "getaddrinfo failed", "temporary failure in name resolution")):
+        return "Host not found - check the address in sources.json."
+    if "timed out" in t or "timeout" in t:
+        return "Timed out - no response from the service."
+    if "no route to host" in t or "network is unreachable" in t:
+        return "Network unreachable - check the LAN connection."
+    if any(s in t for s in ("max retries exceeded", "connectionerror", "new connection")):
+        return "Could not connect to the service."
+    return "Could not reach the service."
+
+
 def source_health() -> list:
     out = []
     for name in config.SERVICES:
@@ -683,13 +707,67 @@ def source_health() -> list:
             })
         except Exception as exc:
             out.append({"source": name, "url": config.service_url(name),
-                        "status": "down", "error": str(exc)})
+                        "status": "down", "error": friendly_error(exc)})
     return out
 
 
 def gather_schema_and_samples():
+    """
+    Skips (rather than crashes on) any source that's currently unreachable -
+    a partial schema-match over the sources that ARE up is far more useful
+    than no analysis at all. Callers can cross-reference source_health() to
+    see which source(s), if any, were left out.
+    """
     schemas, samples = {}, {}
     for name in config.SERVICES:
-        schemas[name] = requests.get(f"{config.service_url(name)}/schema", timeout=5).json()["schema"]
-        samples[name] = requests.get(f"{config.service_url(name)}/sample", timeout=5).json()["samples"]
+        try:
+            schemas[name] = requests.get(f"{config.service_url(name)}/schema", timeout=5).json()["schema"]
+            samples[name] = requests.get(f"{config.service_url(name)}/sample", timeout=5).json()["samples"]
+        except Exception:  # noqa: BLE001 - that source just sits out this analysis
+            pass
     return schemas, samples
+
+
+# --------------------------------------------------------------------------- #
+#  live data explorer - browse each source's real schema + rows at runtime,  #
+#  wherever that source's machine actually is (local or over the LAN)        #
+# --------------------------------------------------------------------------- #
+def explorer_schema() -> dict:
+    """
+    {source: {"url":..., "status": "up"|"down", "error": str|None,
+              "schema": {table: [{name, type, pk, nullable, default, references}, ...]}}}
+    One GET /schema per source, in parallel, each independently allowed to
+    fail (a down machine shows as such - it never breaks the others).
+    """
+
+    def fetch(name):
+        url = config.service_url(name)
+        try:
+            r = requests.get(f"{url}/schema", timeout=5)
+            r.raise_for_status()
+            return name, {"url": url, "status": "up", "error": None,
+                          "schema": r.json().get("schema", {})}
+        except Exception as exc:  # noqa: BLE001
+            return name, {"url": url, "status": "down", "error": friendly_error(exc), "schema": {}}
+
+    out = {}
+    with _cf.ThreadPoolExecutor(max_workers=max(1, len(config.SERVICES))) as ex:
+        for name, result in ex.map(fetch, config.SERVICES):
+            out[name] = result
+    return out
+
+
+def explorer_rows(source: str, table: str, limit: int = 50) -> dict:
+    """Live rows for one table on one source - a thin, safe pass-through to
+    that source's own POST /query (same call every other screen uses), so
+    this always reflects whatever is in that machine's database *right now*,
+    never a cached or stale copy."""
+    if source not in config.SERVICES:
+        return {"ok": False, "source": source, "table": table,
+                "error": f"unknown source '{source}'", "rows": [], "columns": []}
+    limit = max(1, min(int(limit or 50), 500))
+    j = _subquery(source, table, where=None, columns=None, limit=limit)
+    if not j.get("ok", True) and j.get("error"):
+        j["error"] = friendly_error(j["error"])
+    j["columns"] = list(j["rows"][0].keys()) if j.get("rows") else []
+    return j

@@ -1,0 +1,6 @@
+How to find the ip's of different machines
+
+For MacOS: ipconfig getifaddr en0
+For Linux: hostname -I
+For Windows: ipconfig | findstr IPv4
+

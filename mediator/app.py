@@ -60,21 +60,26 @@ def create_app():
     @app.get("/lab", response_class=HTMLResponse, name="lab_page")
     def lab_page(request: Request):
         health = federation.source_health()
+        down_sources = [h["source"] for h in health if h["status"] != "up"]
         report = None
         error = None
         try:
             schemas, samples = federation.gather_schema_and_samples()
             report = schema_matcher.analyze(schemas, samples)
-        except Exception as exc:  # noqa: BLE001
-            error = str(exc)
+        except Exception as exc:  # noqa: BLE001 - unexpected failure, not just a down source
+            error = federation.friendly_error(exc)
         return render(
-            "lab.html", request, health=health, report=report, error=error,
-            gav=GAV_MAPPING, views=MEDIATED_VIEWS,
+            "lab.html", request, health=health, down_sources=down_sources,
+            report=report, error=error, gav=GAV_MAPPING, views=MEDIATED_VIEWS,
         )
 
     @app.get("/query", response_class=HTMLResponse, name="query_page")
     def query_page(request: Request):
         return render("query.html", request, views=MEDIATED_VIEWS, demo_codes=config.DEMO_CODES)
+
+    @app.get("/explorer", response_class=HTMLResponse, name="explorer_page")
+    def explorer_page(request: Request):
+        return render("explorer.html", request)
 
     # ----------------------------- JSON API ---------------------------- #
     @app.get("/api/verify/{code:path}")
@@ -99,6 +104,14 @@ def create_app():
         result = federation.file_report(code)
         status = 200 if result.get("ok", True) else 502
         return JSONResponse(content=result, status_code=status)
+
+    @app.get("/api/explorer/schema")
+    def api_explorer_schema():
+        return federation.explorer_schema()
+
+    @app.get("/api/explorer/rows")
+    def api_explorer_rows(source: str, table: str, limit: int = 50):
+        return federation.explorer_rows(source, table, limit)
 
     return app
 

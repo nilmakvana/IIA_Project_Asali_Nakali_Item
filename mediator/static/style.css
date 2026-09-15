@@ -241,7 +241,7 @@ button:disabled{opacity:.55;cursor:default;filter:none}
 .plan{width:100%;border-collapse:collapse;font-size:.85rem}
 .plan th,.plan td{padding:8px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .plan thead th{color:var(--muted);font-weight:600;font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;
-  background:var(--surface-2)}
+  background:var(--surface-2);position:sticky;top:0;z-index:1}
 .plan tbody tr:hover, .plan tr:hover{background:var(--surface-2)}
 .plan tr.err td{background:var(--nakali-bg)}
 .plan code{white-space:pre-wrap;word-break:break-word;background:transparent;border:0;padding:0;color:#334155}
@@ -271,11 +271,19 @@ button:disabled{opacity:.55;cursor:default;filter:none}
 }
 
 /* ---------- schema-match matrix ---------- */
-.matrix-scroll{overflow-x:auto}
+/* every scrollable table on the site shares this box: same max-height, both
+   scroll axes available, so no table can ever blow out its card's layout -
+   long content scrolls inside a fixed-size box instead of stretching it. */
+.matrix-scroll{
+  overflow-x:auto;overflow-y:auto;max-height:460px;
+  border:1px solid var(--line);border-radius:8px;
+}
+.matrix-scroll table{margin:0}
 .matrix{border-collapse:collapse;font-size:.78rem;margin-top:6px}
 .matrix th{padding:6px;color:var(--muted);font-weight:600}
-.matrix tbody th{position:sticky;left:0;background:var(--surface);text-align:right;white-space:nowrap}
-.matrix thead th{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;height:118px;vertical-align:bottom}
+.matrix tbody th{position:sticky;left:0;background:var(--surface);text-align:right;white-space:nowrap;z-index:1}
+.matrix thead th{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;height:118px;vertical-align:bottom;
+  position:sticky;top:0;background:var(--surface);z-index:2}
 .mc{width:56px;text-align:center;border:1px solid var(--line);color:var(--ink)}
 .mc.self{background:var(--asali-bg);font-weight:700;color:var(--asali)}
 .mc.na{color:var(--faint)}
@@ -305,3 +313,73 @@ textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(
 td.v-asali{color:var(--asali);font-weight:700}
 td.v-suspect{color:var(--suspect);font-weight:700}
 td.v-nakali{color:var(--nakali);font-weight:700}
+
+/* ---------- live data explorer ---------- */
+.explorer-layout{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start;margin-top:14px}
+@media(max-width:820px){.explorer-layout{grid-template-columns:1fr}}
+/* grid items default to min-width:auto, which lets long unbroken content
+   (a stack-trace-style error message, a wide table) force the track wider
+   than its 260px/1fr size instead of wrapping/scrolling inside it - this is
+   what was blowing the sidebar and the data panel out of their boxes. */
+.explorer-sidebar, .explorer-main{min-width:0}
+.explorer-sidebar{position:sticky;top:76px;max-height:calc(100vh - 96px);overflow-y:auto}
+@media(max-width:820px){.explorer-sidebar{position:static;max-height:none}}
+.explorer-sources{display:flex;flex-direction:column;gap:14px;margin-top:4px}
+.explorer-source{border:1px solid var(--line);border-radius:9px;padding:10px 11px;background:var(--surface-2);min-width:0}
+.explorer-source-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.explorer-error-text{
+  font-size:.78rem;color:var(--nakali);overflow-wrap:anywhere;word-break:break-word;
+  max-height:110px;overflow-y:auto;line-height:1.4;
+}
+.explorer-table-btn{
+  display:block;width:100%;text-align:left;background:var(--surface);color:var(--ink-soft);
+  border:1px solid var(--line);border-radius:7px;padding:7px 9px;margin-top:6px;
+  font-size:.85rem;font-weight:600;cursor:pointer;transition:border-color .12s ease, background-color .12s ease;
+  overflow-wrap:anywhere;
+}
+.explorer-table-btn:hover{border-color:var(--accent);background:var(--accent-soft)}
+.explorer-table-btn.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+.explorer-table-btn .muted{font-weight:400}
+
+.explorer-main{min-height:220px}
+.explorer-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px}
+.explorer-head h2{margin-bottom:2px}
+.explorer-meta{color:var(--muted);font-size:.82rem}
+.explorer-controls{display:flex;align-items:center;gap:8px}
+.explorer-controls button{padding:8px 12px;font-size:.83rem}
+.view-tabs{display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:2px;margin-right:2px}
+.view-tab{
+  border:0;background:transparent;color:var(--muted);font-weight:700;font-size:.78rem;
+  padding:6px 12px;border-radius:6px;cursor:pointer;letter-spacing:.02em;
+}
+.view-tab.active{background:var(--surface);color:var(--accent-ink);box-shadow:var(--shadow-sm)}
+.pk-badge{
+  display:inline-block;background:var(--suspect-bg);color:var(--suspect);border:1px solid var(--suspect-line);
+  border-radius:5px;padding:1px 6px;font-size:.66rem;font-weight:800;letter-spacing:.04em;
+}
+
+/* the little pulsing dot next to "Live Data" in the top nav */
+.nav-dot{margin-right:6px;top:0}
+.live-indicator{display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-right:4px}
+.live-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--asali);
+  box-shadow:0 0 0 0 rgba(21,128,61,.5);animation:live-pulse 1.6s ease-out infinite;
+}
+@keyframes live-pulse{
+  0%{box-shadow:0 0 0 0 rgba(21,128,61,.45)}
+  70%{box-shadow:0 0 0 7px rgba(21,128,61,0)}
+  100%{box-shadow:0 0 0 0 rgba(21,128,61,0)}
+}
+#panelBody{margin-top:12px}
+
+/* ---------- reusable up/down status dot (no emoji) ---------- */
+.status-dot{
+  display:inline-block;width:8px;height:8px;border-radius:50%;
+  margin-right:7px;vertical-align:middle;position:relative;top:-1px;
+}
+.status-dot.up{
+  background:var(--asali);
+  box-shadow:0 0 0 0 rgba(21,128,61,.5);animation:live-pulse 1.6s ease-out infinite;
+}
+.status-dot.down{background:var(--nakali);box-shadow:0 0 0 3px var(--nakali-bg)}

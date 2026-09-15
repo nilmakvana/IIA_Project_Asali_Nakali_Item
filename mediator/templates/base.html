@@ -22,6 +22,8 @@
     <a href="{{ url_for('home') }}" class="{{ 'active' if current_path == '/' or current_path.startswith('/item/') else '' }}">Verify item</a>
     <a href="{{ url_for('lab_page') }}" class="{{ 'active' if current_path == '/lab' else '' }}">Integration lab</a>
     <a href="{{ url_for('query_page') }}" class="{{ 'active' if current_path == '/query' else '' }}">Federated SQL</a>
+    <a href="{{ url_for('explorer_page') }}" class="{{ 'active' if current_path == '/explorer' else '' }}">
+      <span class="status-dot up nav-dot" aria-hidden="true"></span>Live Data</a>
   </nav>
 </header>
 

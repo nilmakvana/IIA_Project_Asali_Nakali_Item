@@ -143,6 +143,7 @@
   <details>
     <summary><h2 style="display:inline">Query decomposition &amp; federation plan</h2>
       <span class="muted">&nbsp;({{ rec._plan|length }} sub-queries across {{ rec.sources_contacted }} sources)</span></summary>
+    <div class="matrix-scroll">
     <table class="plan">
       <thead><tr><th>#</th><th>source</th><th>SQL executed on that source</th><th>rows</th><th>ms</th></tr></thead>
       <tbody>
@@ -157,6 +158,7 @@
       {% endfor %}
       </tbody>
     </table>
+    </div>
   </details>
 </section>
 

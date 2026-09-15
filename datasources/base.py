@@ -33,6 +33,12 @@ def _rows(con, sql, params=()):
 
 
 def get_schema(db_path):
+    """
+    {table: [{name, type, pk, nullable, default, references}, ...]}
+    references is "<other_table>.<other_column>" when this column is a
+    foreign key, else None - pulled straight from SQLite's own catalogue
+    (PRAGMA table_info / foreign_key_list), never hand-maintained.
+    """
     con = sqlite3.connect(db_path)
     try:
         tables = [
@@ -46,7 +52,19 @@ def get_schema(db_path):
         schema = {}
         for t in tables:
             info = _rows(con, f'PRAGMA table_info("{t}")')
-            schema[t] = [{"name": col["name"], "type": (col["type"] or "TEXT").upper()} for col in info]
+            fks = _rows(con, f'PRAGMA foreign_key_list("{t}")')
+            fk_by_col = {fk["from"]: f'{fk["table"]}.{fk["to"]}' for fk in fks}
+            schema[t] = [
+                {
+                    "name": col["name"],
+                    "type": (col["type"] or "TEXT").upper(),
+                    "pk": bool(col["pk"]),
+                    "nullable": not bool(col["notnull"]),
+                    "default": col["dflt_value"],
+                    "references": fk_by_col.get(col["name"]),
+                }
+                for col in info
+            ]
         return schema
     finally:
         con.close()

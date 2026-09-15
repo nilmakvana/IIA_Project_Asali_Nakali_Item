@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+{% block title %}Live Data &mdash; Asali / Nakali{% endblock %}
+{% block body %}
+
+<h1>Live data explorer</h1>
+<p class="muted">
+  Browse each source's real schema and current table rows at runtime &mdash;
+  every source here can be on a different machine over the LAN; nothing shown
+  on this page is cached, so a change made anywhere (another user filing a
+  report, a new sale, a service restart) shows up within a couple of seconds.
+</p>
+
+<div class="explorer-layout">
+
+  <aside class="card explorer-sidebar">
+    <h2>Sources &amp; tables</h2>
+    <div id="sourceList" class="explorer-sources">
+      <p class="muted">loading&hellip;</p>
+    </div>
+  </aside>
+
+  <section class="card explorer-main">
+    <div class="explorer-head">
+      <div>
+        <h2 id="panelTitle">Select a table</h2>
+        <div class="explorer-meta" id="panelMeta"></div>
+      </div>
+      <div class="explorer-controls">
+        <div class="view-tabs" id="viewTabs">
+          <button type="button" class="view-tab active" data-view="rows">Rows</button>
+          <button type="button" class="view-tab" data-view="schema">Schema</button>
+        </div>
+        <span class="live-indicator" id="liveIndicator">
+          <span class="live-dot" id="liveDot"></span>
+          <span id="liveLabel">live</span>
+        </span>
+        <button class="ghost" id="pauseBtn" onclick="toggleAutoRefresh()">Pause</button>
+        <button class="ghost" id="refreshBtn" onclick="refreshCurrent()">Refresh now</button>
+      </div>
+    </div>
+
+    <div id="panelBody">
+      <p class="muted">Pick a source and a table on the left to start watching it live.</p>
+    </div>
+  </section>
+
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const POLL_MS = 2000;
+const STATUS_POLL_MS = 8000;
+const ROW_LIMIT = 50;
+
+let currentSource = null;
+let currentTable = null;
+let currentSchema = null;      // {source: {url, status, error, schema: {table: [{name,type,pk,nullable,default,references}]}}}
+let currentView = 'rows';      // 'rows' | 'schema'
+let rowTimer = null;
+let statusTimer = null;
+let autoRefresh = true;
+
+function esc(x){
+  return String(x == null ? '' : x).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function cellText(v){
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  return String(v);
+}
+
+async function safeGet(url){
+  try{
+    const r = await fetch(url);
+    let j = null;
+    try{ j = await r.json(); } catch(e){ /* leave j null */ }
+    if (!r.ok || j === null){
+      return {ok:false, error: (j && j.error) ? j.error : ('HTTP ' + r.status)};
+    }
+    if (j.ok === false) return j;
+    return {ok:true, ...j};
+  }catch(e){
+    return {ok:false, error: String(e)};
+  }
+}
+
+function renderSidebar(){
+  const el = document.getElementById('sourceList');
+  if (!currentSchema){ el.innerHTML = '<p class="file-msg err">could not load any source</p>'; return; }
+  let html = '';
+  for (const name of Object.keys(currentSchema)){
+    const s = currentSchema[name];
+    const colour = {{ SOURCE_COLOURS | tojson }}[name] || '#888';
+    const up = s.status === 'up';
+    html += '<div class="explorer-source">';
+    html += '  <div class="explorer-source-head">';
+    html += '    <span class="src-chip" style="border-color:' + colour + ';color:' + colour + '">' + esc(name) + '</span>';
+    html += '    <span class="' + (up ? 'ok-line' : 'file-msg err') + '" style="font-size:.78rem">' + (up ? '● up' : '● down') + '</span>';
+    html += '  </div>';
+    if (!up){
+      html += '  <div class="explorer-error-text">' + esc(s.error || 'unreachable') + '</div>';
+    } else {
+      const tables = Object.keys(s.schema || {});
+      if (!tables.length){
+        html += '  <div class="muted" style="font-size:.78rem">no tables</div>';
+      }
+      for (const t of tables){
+        const active = (name === currentSource && t === currentTable) ? ' active' : '';
+        html += '  <button type="button" class="explorer-table-btn' + active + '" ' +
+                'data-source="' + esc(name) + '" data-table="' + esc(t) + '">' +
+                esc(t) + '<span class="muted"> (' + (s.schema[t] || []).length + ' cols)</span></button>';
+      }
+    }
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+// event delegation, not inline onclick with interpolated strings - avoids any
+// HTML-attribute quoting issues from table/source names containing quotes
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('sourceList').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.explorer-table-btn');
+    if (btn) selectTable(btn.dataset.source, btn.dataset.table);
+  });
+  document.getElementById('viewTabs').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.view-tab');
+    if (btn) showView(btn.dataset.view);
+  });
+});
+
+async function loadSchema(initial){
+  const j = await safeGet('/api/explorer/schema');
+  if (j.ok === false){
+    document.getElementById('sourceList').innerHTML =
+      '<p class="file-msg err">failed to load sources: ' + esc(j.error) + '</p>';
+    return;
+  }
+  delete j.ok;
+  currentSchema = j;
+  renderSidebar();
+  if (initial && !currentSource){
+    for (const name of Object.keys(currentSchema)){
+      const s = currentSchema[name];
+      if (s.status === 'up'){
+        const tables = Object.keys(s.schema || {});
+        if (tables.length){ selectTable(name, tables[0]); return; }
+      }
+    }
+  }
+}
+
+function selectTable(source, table){
+  currentSource = source; currentTable = table;
+  renderSidebar();
+  document.getElementById('panelTitle').textContent = source + '.' + table;
+  autoRefresh = true;
+  document.getElementById('pauseBtn').textContent = 'Pause';
+  renderCurrentView(true);
+  restartPolling();
+}
+
+function showView(view){
+  if (view === currentView) return;
+  currentView = view;
+  document.querySelectorAll('.view-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === view);
+  });
+  const isRows = view === 'rows';
+  document.getElementById('liveIndicator').hidden = !isRows;
+  document.getElementById('pauseBtn').hidden = !isRows;
+  document.getElementById('refreshBtn').textContent = isRows ? 'Refresh now' : 'Reload schema';
+  renderCurrentView(true);
+}
+
+function renderCurrentView(showSpinner){
+  if (!currentSource || !currentTable) return;
+  if (currentView === 'schema') renderSchemaTab();
+  else fetchRows(showSpinner);
+}
+
+function refreshCurrent(){
+  if (currentView === 'schema') loadSchema(false).then(renderSchemaTab);
+  else fetchRows(true);
+}
+
+function restartPolling(){
+  if (rowTimer) clearInterval(rowTimer);
+  rowTimer = setInterval(() => { if (autoRefresh && currentView === 'rows') fetchRows(false); }, POLL_MS);
+}
+
+function toggleAutoRefresh(){
+  autoRefresh = !autoRefresh;
+  document.getElementById('pauseBtn').textContent = autoRefresh ? 'Pause' : 'Resume';
+  setLive(autoRefresh);
+  if (autoRefresh) fetchRows(false);
+}
+
+function setLive(on){
+  document.getElementById('liveDot').style.background = on ? 'var(--asali)' : 'var(--faint)';
+  document.getElementById('liveLabel').textContent = on ? 'live' : 'paused';
+}
+
+function columnsFor(source, table){
+  const s = currentSchema && currentSchema[source];
+  const cols = s && s.schema && s.schema[table];
+  return (cols || []).map(c => c.name);
+}
+
+function renderSchemaTab(){
+  const source = currentSource, table = currentTable;
+  const s = currentSchema && currentSchema[source];
+  const meta = document.getElementById('panelMeta');
+  const body = document.getElementById('panelBody');
+
+  if (!s || s.status !== 'up'){
+    meta.innerHTML = '<span class="file-msg err">unreachable</span>';
+    body.innerHTML = '<p class="file-msg err">' + esc((s && s.error) || 'source unreachable') + '</p>';
+    return;
+  }
+  const cols = (s.schema && s.schema[table]) || [];
+  meta.innerHTML = cols.length + ' column(s) &middot; source: <code class="nowrap">' + esc(s.url) + '</code>';
+
+  if (!cols.length){
+    body.innerHTML = '<p class="muted">No column information available.</p>';
+    return;
+  }
+  let html = '<div class="matrix-scroll"><table class="plan"><thead><tr>' +
+    '<th>#</th><th>column</th><th>type</th><th>key</th><th>nullable</th><th>default</th><th>references</th>' +
+    '</tr></thead><tbody>';
+  cols.forEach((c, i) => {
+    html += '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td><code>' + esc(c.name) + '</code></td>' +
+      '<td>' + esc(c.type) + '</td>' +
+      '<td>' + (c.pk ? '<span class="pk-badge">PK</span>' : '') + '</td>' +
+      '<td class="muted">' + (c.nullable ? 'yes' : 'no') + '</td>' +
+      '<td class="muted">' + (c.default != null ? esc(c.default) : '&mdash;') + '</td>' +
+      '<td>' + (c.references ? '<code class="nowrap">' + esc(c.references) + '</code>' : '') + '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table></div>';
+  body.innerHTML = html;
+}
+
+async function fetchRows(showSpinner){
+  if (!currentSource || !currentTable) return;
+  const source = currentSource, table = currentTable;
+  if (showSpinner){
+    document.getElementById('panelBody').innerHTML = '<p class="muted">loading&hellip;</p>';
+  }
+  const j = await safeGet('/api/explorer/rows?source=' + encodeURIComponent(source) +
+                           '&table=' + encodeURIComponent(table) + '&limit=' + ROW_LIMIT);
+  // the user may have switched tables while this request was in flight
+  if (source !== currentSource || table !== currentTable) return;
+
+  const meta = document.getElementById('panelMeta');
+  const body = document.getElementById('panelBody');
+
+  if (j.ok === false){
+    meta.innerHTML = '<span class="file-msg err">unreachable</span>';
+    body.innerHTML = '<p class="file-msg err">' + esc(j.error || 'query failed') +
+                      '</p><p class="muted">still retrying every ' + (POLL_MS/1000) +
+                      's &mdash; this will recover automatically if the source comes back.</p>';
+    return;
+  }
+
+  const cols = columnsFor(source, table);
+  const rows = j.rows || [];
+  const now = new Date().toLocaleTimeString();
+  meta.innerHTML = (j.rowcount != null ? j.rowcount : rows.length) + ' row(s) shown (of possibly more)' +
+    ' &middot; ' + (j.elapsed_ms != null ? j.elapsed_ms + ' ms' : '') +
+    ' &middot; source: <code class="nowrap">' + esc((currentSchema[source] || {}).url || source) + '</code>' +
+    ' &middot; updated ' + now;
+
+  if (!rows.length){
+    body.innerHTML = '<p class="muted">0 rows in this table right now.</p>';
+    return;
+  }
+  const headCols = cols.length ? cols : Object.keys(rows[0]);
+  let html = '<div class="matrix-scroll"><table class="plan"><thead><tr>' +
+             headCols.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>';
+  for (const row of rows){
+    html += '<tr>' + headCols.map(c => '<td>' + esc(cellText(row[c])) + '</td>').join('') + '</tr>';
+  }
+  html += '</tbody></table></div>';
+  body.innerHTML = html;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){
+    if (rowTimer) clearInterval(rowTimer);
+    if (statusTimer) clearInterval(statusTimer);
+  } else {
+    restartPolling();
+    statusTimer = setInterval(() => loadSchema(false), STATUS_POLL_MS);
+    if (currentSource) renderCurrentView(false);
+  }
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  loadSchema(true);
+  statusTimer = setInterval(() => loadSchema(false), STATUS_POLL_MS);
+});
+</script>
+{% endblock %}
