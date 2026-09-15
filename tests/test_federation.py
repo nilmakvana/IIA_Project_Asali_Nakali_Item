@@ -9,7 +9,19 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import config  # noqa: E402
 from integration import federation, schema_matcher  # noqa: E402
+
+# These tests check THIS machine's own local databases and services (the ones
+# `python start.py` just built/started here) against the 12 hand-crafted
+# scenarios in data/build_databases.py. If a sources.json happens to exist
+# (e.g. left over from distributed testing), running this script as its own
+# process would otherwise independently resolve manufacturer/distributor/
+# vendor to whatever remote machines it points at - a completely different,
+# possibly stale/un-rebuilt database - and fail with confusing wrong verdicts
+# that have nothing to do with the local code being tested. Force local-only
+# resolution here, same as plain `python start.py` does for itself.
+config.disable_remote_sources()
 
 EXPECT = {
     "SLP-AMOX500-B2401-0007": "ASALI",

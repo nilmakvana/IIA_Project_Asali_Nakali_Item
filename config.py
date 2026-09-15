@@ -117,6 +117,26 @@ def _load_source_overrides() -> dict:
 _OVERRIDES = _load_source_overrides()
 
 
+def disable_remote_sources():
+    """
+    Force every service to resolve to localhost for this process, ignoring
+    sources.json entirely - regardless of whether the file exists on disk.
+
+    Used by `python start.py` with none of --services=... / --services-only
+    / --mediator-only, so that plain command always means "everything on
+    this one machine," full stop - even if a sources.json is still sitting
+    in the project folder from an earlier distributed session (exactly the
+    scenario that caused real confusion once already: a stray sources.json
+    silently redirected a "just run it locally" invocation to two other
+    physical machines).
+
+    Deliberate environment-variable overrides (ASALI_<NAME>_HOST/PORT) still
+    apply even after this call - those are set on purpose, not leftover.
+    """
+    global _OVERRIDES
+    _OVERRIDES = {}
+
+
 def service_host(name: str) -> str:
     """Where to *reach* the named service - possibly on another machine."""
     env = os.environ.get(f"ASALI_{name.upper()}_HOST")

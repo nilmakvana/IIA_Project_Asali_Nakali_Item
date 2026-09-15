@@ -144,6 +144,20 @@ def _parse_args(argv):
 def main():
     a = _parse_args(sys.argv[1:])
 
+    # Plain `python start.py` (no --services=..., --services-only, or
+    # --mediator-only) always means "everything on this one machine" - full
+    # stop, regardless of whether a sources.json happens to exist on disk
+    # from earlier distributed testing. Only an explicit distributed-shaped
+    # flag opts back into reading it.
+    distributed_intent = a["services_arg"] is not None or a["services_only"] or a["mediator_only"]
+    if not distributed_intent:
+        if os.path.exists(config.SOURCES_FILE):
+            print(f"[note] {config.SOURCES_FILE} exists but is ignored for this plain, "
+                  f"single-machine run - every service resolves to 127.0.0.1 here. "
+                  f"Pass --services=<name(s)> (or --services-only / --mediator-only) "
+                  f"to use it.")
+        config.disable_remote_sources()
+
     if a["mediator_only"]:
         requested = []
     elif a["services_arg"] is not None:
