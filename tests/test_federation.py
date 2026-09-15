@@ -44,7 +44,12 @@ def test_schema_matcher_finds_global_key():
     schemas, samples = federation.gather_schema_and_samples()
     report = schema_matcher.analyze(schemas, samples)
     key = report["global_join_key"]
-    assert key is not None
+    assert key is not None, (
+        "no global join key found - make sure all 4 services are up and the "
+        "databases are freshly built (`python data/build_databases.py`); "
+        "leftover test data (e.g. a report filed via the GUI) can also throw "
+        "this off until you rebuild"
+    )
     joined = " ".join(key["members"])
     for col in ("gtin_serial", "item_code", "productBarcode", "suspect_code"):
         assert col in joined, f"{col} missing from discovered join key"
