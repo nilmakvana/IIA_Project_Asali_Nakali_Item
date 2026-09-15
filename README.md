@@ -23,8 +23,21 @@
 * **Full provenance timeline and write-back loop** — file a counterfeit
   report to the Ministry from the GUI, which auto-blacklists the supplier in
   the distributor's database.
-* **A GUI with 3 screens** (item lookup, integration lab, federated SQL) plus
-  free interactive API docs (`/docs`) on every data-source service.
+* **A GUI with 4 screens** (item lookup, integration lab, federated SQL, and
+  a live data explorer) plus free interactive API docs (`/docs`) on every
+  data-source service.
+* **Live Data explorer** — browse every source's real schema (types, PK,
+  nullable, foreign keys) and current table rows at runtime, auto-refreshing
+  every 2 seconds with no caching anywhere, works identically whether a
+  source is local or on another machine over the LAN.
+* **A properly populated dataset** — 12 hand-designed scenarios plus a
+  deterministic background catalogue (~54 more genuine batches across 9
+  manufacturers), so every screen has real volume to show, not a dozen demo
+  rows. `data/build_databases.py`.
+* **Fails loud but stays readable** — a down source never shows a raw
+  Python stack trace; every status/error the GUI surfaces is one short,
+  professional sentence, and losing one source degrades the schema-matching
+  analysis gracefully instead of crashing it.
 * **Runs identically on 1, 2, or 4 machines** — same code, same
   `sources.json` mechanism, and any machine can pick up the mediator/GUI
   role on demand. See [DEPLOYMENT.md](DEPLOYMENT.md) /
@@ -176,13 +189,14 @@ sees. These are now loud instead of silent:
   versions you might find on a lab/Ubuntu machine (e.g. Ubuntu 20.04 ships
   3.8) without a separate interpreter install.
 
-### The three screens
+### The four screens
 
 | URL | What you see |
 |-----|--------------|
 | `/` → `/item/<code>` | verdict banner, trust gauge, red flags, provenance timeline, integrated record, value-conflict panel, the full API call plan, "report to Ministry" button |
 | `/lab` | live status of the 4 data-source APIs, schema-matching similarity matrix + discovered clusters, the mediated-schema map |
 | `/query` | write SQL against the mediated view; watch it get resolved into calls to the source APIs and re-integrated |
+| `/explorer` | pick any source + table, see its live rows (auto-refreshing, 4 machines LAN-safe) or flip to a formatted **Schema** view — type, PK, nullable, default, foreign keys, straight from SQLite |
 
 ## 5. The four isolated schemas
 
@@ -225,7 +239,8 @@ DEPLOYMENT.md                 step-by-step: running the 4 DBs on 4 machines
 DEPLOYMENT_TWO_MACHINE.md     step-by-step: 2 DBs per machine, either machine can be the GUI
 data/build_databases.py       creates + populates the 4 isolated DBs (--only <name> for one)
 datasources/
-  base.py                     generic REST API (/health /schema /sample /query)
+  base.py                     generic REST API (/health /schema /sample /query);
+                               /schema includes type, PK, nullable, default, FK refs
   manufacturer_service.py     :8081
   distributor_service.py      :8082  (+ POST /flag-supplier)
   vendor_service.py           :8083
@@ -236,7 +251,7 @@ integration/
   federation.py               query the source APIs, integrate, run the verdict engine
 mediator/
   app.py                      FastAPI app (GUI + JSON API), no DB of its own
-  templates/  static/         the 3 screens (light theme, active nav, responsive)
+  templates/  static/         the 4 screens (light theme, active nav, responsive)
 start.py                      launcher: all-in-one / --services=<subset> / --services-only /
                                --mediator-only / --with-mediator / --lan / --rebuild
 tests/test_federation.py      12 scenario assertions + matcher assertions

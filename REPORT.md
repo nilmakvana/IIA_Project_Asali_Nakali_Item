@@ -159,10 +159,31 @@ several secondary correspondences to find.
 
 ## 4. Populating the data — *(2 marks)*
 
-All in [`data/build_databases.py`](data/build_databases.py):
-3 companies, 10 products, 10 genuine batches, 3 suppliers, 5 consignments,
-11 distribution rows, 3 vendors, 13 purchase scans, ~140 customer sales,
-3 counterfeit reports, 7 verified-registry entries, 2 enforcement actions.
+All in [`data/build_databases.py`](data/build_databases.py), in two layers:
+
+**12 hand-crafted rows** carrying the deliberate scenarios below (unchanged
+since the beginning - this is the data the automated tests assert against),
+**plus a deterministic "background" catalogue** of ~54 additional genuine
+batches across 9 more manufacturers, 5 more suppliers and 5 more vendors -
+fully distributed and sold - so every source looks like a real, reasonably
+populated system rather than a dozen demo rows. Current totals:
+
+| Source | Tables → row counts |
+|---|---|
+| manufacturer | companies **12**, products **37**, manufactured_batches **64** |
+| distributor | suppliers **8**, inbound_consignments **59**, distributed_stock **65** |
+| vendor | vendors **8**, purchaseScans **67**, customerSales **330** |
+| ministry | counterfeit_reports **3**, verified_genuine_registry **51**, enforcement_actions **2** |
+
+The background data is **deterministic, not random** (fixed lists + index
+arithmetic, no `random` module) - this matters specifically because each of
+the 4 databases can be built independently, on a different machine, by a
+process with no access to the other three (see §7.1). Two processes running
+the same script always produce byte-identical output, which is the only way
+`distributor.db`'s `source_company` text can end up literally matching
+`manufacturer.db`'s `company_name` text when built on two separate laptops.
+New codes use distinct prefixes (`EVW-`, `NBL-`, `TRD-`, ...) so none of them
+can ever collide with or perturb the 12 scenario codes below.
 
 **12 deliberate scenarios** so the federated engine has something to prove
 (asserted in `tests/test_federation.py`):
@@ -228,12 +249,23 @@ Hybrid similarity for every **cross-source** column pair:
 score = 0.30 · name_similarity      (tokenise: splitCamelCase + snake_case,
                                      synonym map, Jaccard on tokens + difflib ratio)
       + 0.10 · type_similarity      (inferred: date / integer / number / text)
-      + 0.60 · value_similarity     (Jaccard of the actual sample value sets)   ← dominant
+      + 0.60 · value_similarity     (see below)                                ← dominant
 match  ⇔  score ≥ 0.34
 ```
 
 * **Instance-based (value) matching dominates** — that is what identifies the
   code columns even though the names differ.
+* **`value_similarity` blends Jaccard with a containment (overlap) coefficient**:
+  `0.4 · |A∩B|/|A∪B|  +  0.6 · |A∩B|/min(|A|,|B|)`. Pure Jaccard alone breaks
+  down once the background data (§4) made the sources very different sizes -
+  `counterfeit_reports` samples only 3 values while `manufactured_batches`
+  samples dozens, so the *union* term drowns out a real match even when every
+  value on the small side is genuinely present on the large side. Containment
+  measures exactly that "is the small side a subset of the large side"
+  relationship instead, which is the textbook fix for matching a small
+  reference table against a large transactional one. Guarded for sets smaller
+  than 2 distinct values, where containment alone is too easy to satisfy by
+  chance (e.g. a `country` column that's just `"India"` repeated).
 * **Surrogate-key guard**: two small-integer id columns get their value
   similarity discounted ×0.1 unless the names also agree, so row-ids don't all
   collapse into one bogus cluster.
@@ -241,7 +273,8 @@ match  ⇔  score ≥ 0.34
   columns.
 * The **global join key** = the largest cluster containing the code columns.
 
-Result on the seed data (`GET /api/schema-match`, shown on `/lab`):
+Result on the (now much larger) seed data — `77` columns compared, `14`
+cross-source pairs matched (`GET /api/schema-match`, shown on `/lab`):
 
 ```
 cluster 5  {gtin_serial, item_code, productBarcode, suspect_code, auth_code}   ← GLOBAL JOIN KEY
@@ -447,6 +480,24 @@ loud instead:
   (e.g. Ubuntu 20.04's 3.8) this would `TypeError` at import, before the
   service even starts. Replaced with `typing.Optional[str]`, portable back
   to Python 3.5+.
+* **One down source no longer takes the whole schema-matching feature down
+  with it**: `gather_schema_and_samples()` used to `raise` the moment any one
+  of the four `/schema` calls failed, which crashed `/lab`'s entire "Schema
+  matching algorithm" section and leaked a raw multi-line connection
+  exception onto the page. It now skips just the unreachable source and
+  still computes the analysis over whichever sources *are* up, with a short
+  notice naming which one(s) were left out - verified by actually taking two
+  sources down at once and confirming `/lab` still renders a meaningful
+  partial result instead of an error block.
+* **Every raw connection exception shown to a user is now one short,
+  professional sentence**, not a four-line Python stack trace
+  (`friendly_error()` in `federation.py`, keyword-classified into
+  "connection refused" / "host not found" / "timed out" / "network
+  unreachable" / generic - portable across the different wording macOS,
+  Linux and Windows each use for the same failure) - applied consistently
+  everywhere a source's status reaches the GUI: `/lab`'s status column, the
+  Live Data explorer's sidebar and data panel, and the schema-matching
+  notice above.
 
 Every one of these was found and fixed by actually running the distributed
 deployment end-to-end - a real VPN-confused `lan_ip()` guess, a real Ubuntu
@@ -490,6 +541,41 @@ per-source sub-queries and the re-integrated result. Preset buttons for the
 point-lookup (4 sources), the multi-row join (2 sources) and the authenticity
 view.
 
+### `/explorer` — Live Data
+
+A fourth screen: browse each source's **real schema and current table rows at
+runtime**, with no caching anywhere in the path - every request is a live
+`GET`/`POST` straight to that source's own API (`datasources/base.py`'s
+`/schema` and `/query`, the identical calls every other screen uses), which
+is also what makes it work unmodified whether a source is on `localhost` or
+on another machine over the LAN.
+
+* **Two views per table.** **Rows** - the live data, auto-refreshing every 2
+  seconds, with its own Pause/Resume and a pulsing "LIVE" indicator (paused
+  automatically when the browser tab isn't visible, so it doesn't churn the
+  network for nothing). **Schema** - a properly formatted structure view:
+  column, type, **PK** badge, nullable, default value, and **foreign-key
+  references** (`product_id → products.product_id`), all read straight from
+  SQLite's own catalogue (`PRAGMA table_info` + `PRAGMA foreign_key_list` -
+  enriched in `datasources/base.py`'s `get_schema()`) rather than
+  hand-maintained, so it can never drift out of sync with the real schema.
+  Switching tables preserves whichever view you were on.
+* **Genuinely proven live, not just described as live.** While the page sat
+  open with zero interaction, a new counterfeit report was filed via a
+  separate API call (simulating another user on another machine) and the
+  page picked it up on its own within one poll cycle - confirmed both by
+  DOM inspection and a screenshot, no reload.
+* **Fails gracefully and recovers automatically.** A source killed mid-view
+  shows a short in-place message and keeps quietly retrying; restarting that
+  source causes the panel to recover on its own within one poll cycle - both
+  directions verified by actually killing and restarting a service while the
+  page was open.
+* **Consistent, bounded layout everywhere.** Every scrollable table on the
+  whole site (not just this page) shares one box: a fixed max-height, both
+  scroll axes, a sticky header - fixing a real CSS Grid bug where a long
+  connection-error message or a wide table could blow the sidebar/panel out
+  of its box instead of scrolling inside it.
+
 ### Design and UX
 
 A dedicated pass beyond "it works", since the rubric weighs the GUI on its
@@ -521,6 +607,22 @@ own (3 marks, the largest single line item):
 * **Cache-busted static assets** (`STATIC_VERSION` derived from file mtime)
   so a CSS/JS change is guaranteed to show up on next reload instead of
   risking a stale browser cache during iteration or a live demo.
+* **A single reusable "up/down" status dot**, animated with CSS (not an
+  emoji) - a pulsing green dot for up, a plain red one for down, since a
+  pulse reads as "alive" and a dead source shouldn't look alive. Used
+  identically on `/lab`'s source table and, as a small live-status cue,
+  next to "Live Data" in the top nav itself.
+* **Two real front-end bugs caught and fixed by testing the actual click,
+  not just the code**: dynamically-built buttons were interpolating
+  `JSON.stringify()`'s double-quoted output straight into a double-quoted
+  `onclick="..."` attribute, corrupting the markup the moment a table name
+  reached the browser - fixed by switching to `data-*` attributes and one
+  delegated click listener, which removes the whole class of bug rather
+  than escaping around it. Separately, the "report filed" success message
+  read `j.response.request.x` when the field was actually at the top level
+  (`j.request.x`) - only surfaced once a report was filed for a code with a
+  *real* supplier to blacklist, which is exactly the case that had never
+  been exercised through the browser before.
 
 ---
 
@@ -540,7 +642,13 @@ own (3 marks, the largest single line item):
 6. **`/lab`** → similarity matrix: the 5 code columns light up; the licence
    columns stay dark (correctly not merged).
 7. **`/query`** → run the two presets; compare the 4-API vs 2-API plans.
-8. `python tests/test_federation.py` → all scenarios pass.
+8. **`/explorer`** → pick any table, watch it auto-refresh; switch to the
+   **Schema** tab on `manufactured_batches` to show the PK badge and the
+   `product_id → products.product_id` foreign key, read straight from
+   SQLite. For extra impact: in another terminal, `curl -XPOST
+   127.0.0.1:8080/api/report/CRL-OMEPRAZ-B0064` while this page is open, and
+   watch the new row appear in `ministry.counterfeit_reports` with no reload.
+9. `python tests/test_federation.py` → all scenarios pass.
 
 ### Full version, distributed (the actual requirement)
 
