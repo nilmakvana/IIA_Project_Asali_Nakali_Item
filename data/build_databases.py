@@ -188,14 +188,14 @@ def build_manufacturer(path):
     c.executescript(
         """
         CREATE TABLE companies (
-            company_id      INTEGER PRIMARY KEY,
+            company_id      INTEGER PRIMARY KEY NOT NULL,
             company_name    TEXT NOT NULL,
             license_no      TEXT NOT NULL,
             country         TEXT,
             established_year INTEGER
         );
         CREATE TABLE products (
-            product_id   INTEGER PRIMARY KEY,
+            product_id   INTEGER PRIMARY KEY NOT NULL,
             company_id   INTEGER NOT NULL REFERENCES companies(company_id),
             brand_name   TEXT NOT NULL,
             generic_name TEXT NOT NULL,
@@ -204,7 +204,7 @@ def build_manufacturer(path):
             hsn_code     TEXT
         );
         CREATE TABLE manufactured_batches (
-            batch_id        INTEGER PRIMARY KEY,
+            batch_id        INTEGER PRIMARY KEY NOT NULL,
             product_id      INTEGER NOT NULL REFERENCES products(product_id),
             gtin_serial     TEXT NOT NULL UNIQUE,   -- << shared code value
             mfg_date        TEXT NOT NULL,
@@ -288,7 +288,7 @@ def build_distributor(path):
     c.executescript(
         """
         CREATE TABLE suppliers (
-            sup_id          INTEGER PRIMARY KEY,
+            sup_id          INTEGER PRIMARY KEY NOT NULL,
             sup_name        TEXT NOT NULL,
             drug_license    TEXT NOT NULL,
             gstin           TEXT,
@@ -298,14 +298,14 @@ def build_distributor(path):
             blacklist_reason TEXT
         );
         CREATE TABLE inbound_consignments (
-            consignment_id  INTEGER PRIMARY KEY,
+            consignment_id  INTEGER PRIMARY KEY NOT NULL,
             sup_id          INTEGER NOT NULL REFERENCES suppliers(sup_id),
             source_company  TEXT NOT NULL,          -- << shared: manufacturer name
             received_on     TEXT NOT NULL,
             invoice_no      TEXT
         );
         CREATE TABLE distributed_stock (
-            dist_row_id      INTEGER PRIMARY KEY,
+            dist_row_id      INTEGER PRIMARY KEY NOT NULL,
             consignment_id   INTEGER NOT NULL REFERENCES inbound_consignments(consignment_id),
             item_code        TEXT NOT NULL,         -- << shared code value
             product_desc     TEXT,
@@ -390,14 +390,14 @@ def build_vendor(path):
     c.executescript(
         """
         CREATE TABLE vendors (
-            vendorId     INTEGER PRIMARY KEY,
+            vendorId     INTEGER PRIMARY KEY NOT NULL,
             vendorName   TEXT NOT NULL,            -- << shared: vendor name
             shopLicense  TEXT NOT NULL,
             city         TEXT,
             pincode      TEXT
         );
         CREATE TABLE purchaseScans (
-            scanId          INTEGER PRIMARY KEY,
+            scanId          INTEGER PRIMARY KEY NOT NULL,
             vendorId        INTEGER NOT NULL REFERENCES vendors(vendorId),
             productBarcode  TEXT NOT NULL,         -- << shared code value
             scannedLabelName TEXT,
@@ -407,7 +407,7 @@ def build_vendor(path):
             cashierNote     TEXT
         );
         CREATE TABLE customerSales (
-            saleId          INTEGER PRIMARY KEY,
+            saleId          INTEGER PRIMARY KEY NOT NULL,
             scanId          INTEGER NOT NULL REFERENCES purchaseScans(scanId),
             saleTime        TEXT NOT NULL,
             billNo          TEXT,
@@ -520,7 +520,7 @@ def build_ministry(path):
     c.executescript(
         """
         CREATE TABLE counterfeit_reports (
-            report_ref              TEXT PRIMARY KEY,
+            report_ref              TEXT PRIMARY KEY NOT NULL,
             suspect_code            TEXT NOT NULL,   -- << shared code value
             reported_by_vendor      TEXT,            -- << shared: vendor name
             reported_against_supplier TEXT,          -- << shared: supplier name
@@ -531,13 +531,13 @@ def build_ministry(path):
             filed_by                TEXT DEFAULT 'field-inspector'
         );
         CREATE TABLE verified_genuine_registry (
-            reg_id              INTEGER PRIMARY KEY,
+            reg_id              INTEGER PRIMARY KEY NOT NULL,
             auth_code           TEXT NOT NULL UNIQUE,  -- << shared code value
             verifying_authority TEXT,
             verified_on         TEXT
         );
         CREATE TABLE enforcement_actions (
-            action_id       INTEGER PRIMARY KEY,
+            action_id       INTEGER PRIMARY KEY NOT NULL,
             report_ref      TEXT NOT NULL REFERENCES counterfeit_reports(report_ref),
             action_taken    TEXT,
             penalty_amount  REAL,
