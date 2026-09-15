@@ -7,3 +7,5 @@ venv/
 data/*.db
 # machine-specific: where THIS machine finds the other 4 services (see DEPLOYMENT.md)
 sources.json
+
+.DS_Store
